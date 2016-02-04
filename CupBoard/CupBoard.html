@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+    <head>
+<!--                <script src="lib/verb.js"></script>
+                <script src="lib/three.min.js"></script>
+                <script src="../js/verbToThreeConversion.js"></script>
+                <script src="../js/OrbitControls.js"></script>
+                <script src="lib/threeBasic.js"></script>
+                <script src="lib/STLLoader.js"></script>-->
+
+        <style type="text/css">
+            body { 
+                margin: 0; 
+                background: white;
+            }
+        </style>
+    </head>
+    <body>
+
+        <script>
+
+            CupBoard = function () {
+                //overal variables
+                this.height;
+                this.width;
+                this.length;
+
+                //bought variables
+                this.legDiameter;
+                this.shelfThickness;
+                this.wallThickness;
+
+                //printed variables
+                this.connectorLegWallTop;
+                this.connectorLegWallBottom;
+                this.connectorLegShelf;
+                this.connectorLegShelfWall;
+
+                //build the cupboard;
+                this.Build();
+            };
+
+            CupBoard.prototype.Build = function () {
+                console.log("I'm building bro");
+            };
+
+            var cupboard = new CupBoard();
+
+
+            OpenPlus = {
+                EqualPoints: function (pointA, pointB) {
+                    if (Math.abs(pointA[0] - pointB[0]) > 1e-6)
+                        return false;
+                    if (Math.abs(pointA[1] - pointB[1]) > 1e-6)
+                        return false;
+                    if (Math.abs(pointA[2] - pointB[2]) > 1e-6)
+                        return false;
+                    return true;
+                },
+                
+                JoinCurves: function (tempCurves) {
+                    var curves = tempCurves.slice(0);
+
+                    var CurveLine = function (curve) {
+                        this.start = curve.point(0);
+                        this.end = curve.point(1);
+                        this.curves = [curve];
+                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
+                    };
+
+                    CurveLine.prototype.push = function (newCurve) {
+                        this.end = newCurve.point(1);
+                        this.curves.push(newCurve);
+                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
+                    };
+
+                    CurveLine.prototype.unshift = function (newCurve) {
+                        this.start = newCurve.point(0);
+                        this.curves.unshift(newCurve);
+                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
+                    };
+
+                    var curveLine = new CurveLine(curves.splice(0, 1)[0]);
+                    var connectedCurves = [curveLine];
+
+                    //sure this algorithm is horrible, but should work for now
+                    if (curves.length !== 0) {
+
+                        for (var i = 0; i < connectedCurves.length; i++) {
+
+                            var tempLine = connectedCurves[i];
+
+                            if (!tempLine.closed) {
+
+                                for (var j = 0; j < curves.length; j++) {
+
+                                    var curve = curves[j];
+
+                                    var curveStart = curve.point(0);
+                                    var curveEnd = curve.point(1);
+
+                                    if (OpenPlus.EqualPoints(curveStart, tempLine.end)) {
+                                        tempLine.push(curve);
+                                    } else if (OpenPlus.EqualPoints(curveEnd, tempLine.start)) {
+                                        tempLine.unshift(curve);
+                                    } else if (OpenPlus.EqualPoints(curveStart, tempLine.start)) {
+                                        tempLine.unshift(curve.reverse());
+                                    } else if (OpenPlus.EqualPoints(curveEnd, tempLine.end)) {
+                                        tempLine.push(curve.reverse());
+                                    } else {
+                                        continue;
+                                    }
+
+                                    curves.splice(j, 1);
+                                    j = -1;
+
+                                    if (tempLine.closed)
+                                        break;
+                                }
+                            }
+
+                            if (curves.length === 0)
+                                break;
+                            else
+                                connectedCurves.push(new CurveLine(curves.splice(0, 1)[0]));
+
+                        }
+                    } else
+                        return null;
+
+                    var returnArray = [];
+                    for (var i = 0; i < connectedCurves.length; i++) {
+                        returnArray[i] = connectedCurves[i].curves;
+                    }
+
+                    return returnArray;
+                },
+                
+                PlanarSrf: function (curves, willFlip) {
+                    var flipped = willFlip || false;
+
+                    //first need to check if all are curves
+
+                    //create joined lines, should check if these are inside each other or not
+                    //this will define if an object with or without hole will be made
+                    var curveLines = OpenPlus.JoinCurves(curves);
+
+                    //now I need to check if the curves are planar
+                    //http://verbnurbs.com/docs/core/Trig/#ispointinplane
+                    //http://threejs.org/docs/#Reference/Math/Plane
+
+                    //then check if curves intersect or are inside each other
+                    //those that are inside a different path need to create their own geometry
+
+                    var path = new THREE.Path;
+                    path.autoClose = false;
+
+                    for (var i = 0; i < curveLines.length; i++) {
+                        var tempCurves = curveLines[i];
+
+                        var startPoint = tempCurves[0].point(0);
+                        var vertices = [new THREE.Vector2(startPoint[0], startPoint[1])];
+
+                        for (var j = 0; j < tempCurves.length; j++) {
+                            var curve = tempCurves[j].toThreeGeometry();
+
+                            var verticeClone = curve.vertices.slice(1);
+
+                            vertices = vertices.concat(verticeClone);
+                        }
+
+                        path.fromPoints(vertices);
+                    }
+
+                    var shape = path.toShapes(flipped, false)[0];
+
+                    var geometry = new THREE.ShapeGeometry(shape, {curveSegments: 100});
+
+                    return geometry;
+                }
+            };
+
+
+
+        </script>
+
+    </body>
+
+</html>

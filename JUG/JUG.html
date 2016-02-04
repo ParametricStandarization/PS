@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="../lib/verb.js"></script>
+        <script src="../lib/three.min.js"></script>
+        <script src="../lib/verbToThreeConversion.js"></script>
+        <script src="../lib/OrbitControls.js"></script>
+        <script src="../lib/threeBasic.js"></script>
+        <script src="../lib/STLLoader.js"></script>
+
+        <style type="text/css">
+            body { 
+                margin: 0; 
+                background: white;
+            }
+        </style>
+    </head>
+    <body>
+
+        <script>
+
+            threeSetup(true);
+
+
+            var loader = new THREE.STLLoader();
+
+            var vaseMaterial = new THREE.MeshPhongMaterial({
+                color: 0x8b9dc3,
+                specular: 0x111111,
+                shininess: 200,
+                transparent: true,
+                opacity: 0.1
+                , shading: THREE.SmoothShading,
+                depthWrite: false
+            });
+
+            loader.load('vases/SINNERLIG_POT.stl', function (geometry) {
+                var mesh = new THREE.Mesh(geometry, vaseMaterial);
+
+                mesh.position.set(0, 0, -18.6);
+
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+
+                scene.add(mesh);
+
+            });
+
+
+            Jug = function () {
+
+
+                //    this.material = new THREE.MeshNormalMaterial( { 
+                //            side: THREE.DoubleSide
+                //            , wireframe: false
+                //            , transparent: true, opacity: 0.4
+                //        } );
+
+                this.materialFront = new THREE.MeshPhongMaterial({
+                    color: 0xffb6c1
+                    , side: THREE.FrontSide
+                    , wireframe: false
+                            //        , transparent: true, opacity: 1
+                    , transparent: true, opacity: 0.8
+                            //, shading : THREE.FlatShading
+                    , shading: THREE.SmoothShading
+                });
+
+                this.materialBack = new THREE.MeshPhongMaterial({
+                    color: 0xffb6c1
+                    , side: THREE.BackSide
+                    , wireframe: false
+                            //        , transparent: true, opacity: 1
+                    , transparent: true, opacity: 0.8
+                            //, shading : THREE.FlatShading
+                    , shading: THREE.SmoothShading
+                });
+
+                //set variables for the Jug
+                this.rimWidth = 1;
+                this.vesselDiameter = 21;
+                this.handleDiameter = 5;
+                this.connectorHeight = 10;
+                this.handleLength = 5;
+
+                this.tensionerGap = 0.5;
+                this.screwDiameter = 0.3;
+                this.screwOffset = 1;
+
+                this.minRimCover = 2;
+
+                this.offset = 1;
+                this.margin = 0.3;
+
+                this.spoutMargin = 0.3;
+
+                //changeable variables for the Jug
+                this.spoutHeight = 5;
+                this.spoutLength = 4;
+
+                //set standard values that change by others
+                this.SetArcAngles();
+
+                this.tensionerHeight = this.screwDiameter + (this.screwOffset * 2);
+
+                this.rimHeight = this.connectorHeight - (this.connectorHeight * 0.2);
+                if (this.rimHeight < (this.tensionerHeight + this.tensionerGap + this.minRimCover))
+                    this.rimHeight = (this.tensionerHeight + this.tensionerGap + this.minRimCover);
+
+                //removeable objects
+                this.spout;
+
+
+                var d1 = Date.now();
+
+                //build jug
+                this.BuildVesselTensioner();
+                this.BuildSpout();
+                scene.add(this.spout);
+                this.BuildInnerVessel();
+                this.BuildVesselHandle();
+                this.BuildHandleTensioner();
+                this.BuildHandleBridge();
+
+                var outerRadius = (this.vesselDiameter / 2) + this.margin + this.offset;
+                var spoutTip = [outerRadius + this.spoutLength, 0, this.connectorHeight];
+                addIntersectObject(
+                        spoutTip,
+                        this,
+                        "setSpoutLength",
+                        {origin: [outerRadius, 0, this.connectorHeight],
+                            direction: [1000000, 0, 0]});
+
+                var spoutConPt = [outerRadius, 0, this.connectorHeight - this.spoutHeight];
+                addIntersectObject(
+                        spoutConPt,
+                        this,
+                        "setSpoutHeight",
+                        {origin: [outerRadius, 0, 0],
+                            direction: [0, 0, this.connectorHeight]});
+
+                var d2 = Date.now();
+                console.log("built complete in ", (d2 - d1), " ms ");
+            };
+
+            Jug.prototype.SetArcAngles = function () {
+
+                var outerRadiusV = (this.vesselDiameter / 2) + this.margin;
+                var outerRadiusH = (this.handleDiameter / 2) + this.margin;
+
+                var smallestRadius = outerRadiusV < outerRadiusH;
+
+                var radiusS = smallestRadius ? outerRadiusV : outerRadiusH;
+                var radiusL = smallestRadius ? outerRadiusH : outerRadiusV;
+
+                var angleS = Math.PI * 0.1;
+                var y = radiusS * Math.sin(angleS);
+
+                var angleL = Math.asin(y / radiusL);
+
+                this.vesselTensionerAngle = smallestRadius ? angleS : angleL;
+                this.handleTensionerAngle = smallestRadius ? Math.PI - angleL : Math.PI - angleS;
+
+                this.vesselTopAngleEnd = Math.asin(y / (outerRadiusV + this.offset));
+                this.vesselTopAngleStart = Math.asin((y + this.offset) / (outerRadiusV + this.offset));
+            };
+
+
+            Jug.prototype.calcInnerSpout = function () {
+
+            };
+
+            Jug.prototype.BuildVesselTensioner = function () {
+
+                var d1 = Date.now();
+
+                var tensionerHeight = this.tensionerHeight;
+
+                var center = [0, 0, 0];
+                var xAxis = [-1, 0, 0];
+                var yAxis = [0, 1, 0];
+
+                var innerRadius = (this.vesselDiameter / 2) + this.margin;
+                var outerRadius = (this.vesselDiameter / 2) + this.offset + this.margin;
+                var minAngle = this.vesselTensionerAngle;
+
+                var meshesFront = [];
+                var meshesBack = [];
+
+                //create bottom horizontal plane
+
+                //start with making inner Arc
+                var innerArcA = new verb.geom.Arc(center, xAxis, yAxis, innerRadius,
+                        minAngle, Math.PI / 2);
+                var innerArcB = new verb.geom.Arc(center, xAxis, yAxis, innerRadius,
+                        Math.PI / 2, Math.PI);
+
+                var innerArcStart = innerArcA.point(0);
+
+                //need to know what startPoints these are
+                var innerStartPoint = [-(tensionerHeight + outerRadius), innerArcStart[1], 0];
+
+                var innerTensionerLineA = new verb.geom.Line(innerStartPoint, innerArcStart);
+
+                //here I want to offset the previous curves in the xy plane.
+                //but this is actually a rather complex algorithm that is not yet written
+                //if I could only write haxe... but rather I'll fumble around it
+
+                //do it the matimatical way
+                var offsetY = innerStartPoint[1] + this.offset;
+
+                minAngle = Math.asin(offsetY / outerRadius);
+
+                var xAxis = [1, 0, 0];
+
+                var outerArcB = new verb.geom.Arc(center, xAxis, yAxis, outerRadius,
+                        0, Math.PI * 0.5);
+                var outerArcC = new verb.geom.Arc(center, xAxis, yAxis, outerRadius,
+                        Math.PI * 0.5, Math.PI - minAngle);
+
+                var outerArcEnd = outerArcC.point(1);
+
+                //move the points in y direction for the offset of the lines.
+                var outerEndPoint = [innerStartPoint[0], offsetY, 0];
+
+                var outerTensionerLineA = new verb.geom.Line(outerArcEnd, outerEndPoint);
+
+                //now to write the bridging lines
+                var bridgeLineB = new verb.geom.Line(outerEndPoint, innerStartPoint);
+                var bridgeLineD = new verb.geom.Line(innerArcB.point(0), outerArcC.point(0));
+                var halfWayCloseCrv = new verb.geom.Line(innerArcB.point(1), outerArcB.point(0));
+
+                var geomPlanarA = OpenPlus.PlanarSrf([innerArcA, innerArcB, halfWayCloseCrv
+                            , outerArcB, outerArcC
+                            , outerTensionerLineA, bridgeLineB, innerTensionerLineA
+                ]);
+
+                meshesBack.push(new THREE.Mesh(geomPlanarA));
+
+                //de extrusies maken van de edges
+                var curvesToExtrudeA = [innerArcA, bridgeLineB, outerArcC];
+
+                for (var i = 0; i < curvesToExtrudeA.length; i++) {
+                    var curve = curvesToExtrudeA[i];
+                    var srf = new verb.geom.ExtrudedSurface(curve, [0, 0, tensionerHeight]);
+
+                    var srfGeom = srf.toThreeGeometry();
+                    var srfMesh = new THREE.Mesh(srfGeom);
+
+                    meshesBack.push(srfMesh);
+                }
+                ;
+
+                var srf = new verb.geom.ExtrudedSurface(bridgeLineD,
+                        [0, 0, this.tensionerGap]);
+
+                var geom = srf.toThreeGeometry();
+                var mesh = new THREE.Mesh(geom);
+                mesh.translateZ(tensionerHeight);
+
+                meshesFront.push(mesh);
+
+                //de bovenste horizontale plaat maken
+                var geomB = OpenPlus.PlanarSrf([outerArcC
+                            , outerTensionerLineA, bridgeLineB, innerTensionerLineA
+                            , innerArcA, bridgeLineD
+                ]);
+
+                geomB.translate(0, 0, tensionerHeight);
+                var meshB = new THREE.Mesh(geomB);
+
+                meshesFront.push(meshB);
+
+                //only create the last two pieces
+                //the flaps with screw holes
+
+                //first create the offsets
+                //need to do this planar, and then rotate them
+                //will do this on one side and then mirror
+
+                var bottomLine = innerTensionerLineA;
+
+                var topStart = bottomLine.point(1);
+                var topEnd = bottomLine.point(0);
+
+                topStart[1] = topStart[1] - tensionerHeight;
+                topEnd[1] = topEnd[1] - tensionerHeight;
+
+                var topLine = new verb.geom.Line(topStart, topEnd);
+
+                var bridgeLineA = new verb.geom.Line(bottomLine.point(1), topStart);
+                var bridgeLineB = new verb.geom.Line(topEnd, bottomLine.point(0));
+
+                var screwRadius = this.screwDiameter / 2;
+
+                var circleCenter = [topEnd[0] + this.screwOffset + screwRadius,
+                    topEnd[1] + this.screwOffset + screwRadius, 0];
+                var screwHole = new verb.geom.Circle(circleCenter, xAxis, yAxis, screwRadius);
+
+                var geomPlanarB = OpenPlus.PlanarSrf([
+                    bottomLine, bridgeLineA,
+                    topLine, bridgeLineB,
+                    screwHole
+                ]);
+
+                var meshPlanarB = new THREE.Mesh(geomPlanarB);
+
+                var tempPoint = bottomLine.point(0);
+                meshPlanarB.position.set(tempPoint[0], tempPoint[1], tempPoint[2]);
+                meshPlanarB.geometry.applyMatrix(new THREE.Matrix4().makeTranslation(
+                        -tempPoint[0], -tempPoint[1], -tempPoint[2]));
+                meshPlanarB.rotateX(-Math.PI / 2);
+
+                meshesBack.push(meshPlanarB);
+
+                bottomLine = outerTensionerLineA;
+
+                topStart = bottomLine.point(1);
+                topEnd = bottomLine.point(0);
+
+                topStart[1] = topStart[1] + tensionerHeight;
+                topEnd[1] = topEnd[1] + tensionerHeight;
+
+                topLine = new verb.geom.Line(topStart, topEnd);
+
+                bridgeLineA = new verb.geom.Line(bottomLine.point(1), topStart);
+                bridgeLineB = new verb.geom.Line(topEnd, bottomLine.point(0));
+
+                circleCenter = [topStart[0] + this.screwOffset + screwRadius,
+                    topStart[1] - this.screwOffset - screwRadius, 0];
+                screwHole = new verb.geom.Circle(circleCenter, xAxis, yAxis, screwRadius);
+
+                var geomPlanarC = OpenPlus.PlanarSrf([
+                    bottomLine, bridgeLineA,
+                    topLine, bridgeLineB,
+                    screwHole
+                ]);
+
+                var meshPlanarC = new THREE.Mesh(geomPlanarC);
+
+                tempPoint = bottomLine.point(0);
+                meshPlanarC.position.set(tempPoint[0], tempPoint[1], tempPoint[2]);
+                meshPlanarC.geometry.applyMatrix(new THREE.Matrix4().makeTranslation(
+                        -tempPoint[0], -tempPoint[1], -tempPoint[2]));
+                meshPlanarC.rotateX(Math.PI / 2);
+
+                meshesBack.push(meshPlanarC);
+
+                //create extrusion of screwHole
+                center = [circleCenter[0], bottomLine.point(0)[1], tensionerHeight / 2];
+                xAxis = [1, 0, 0];
+                yAxis = [0, 0, 1];
+                screwHole = new verb.geom.Circle(center, xAxis, yAxis, screwRadius);
+
+                var screwExtrusion = new verb.geom.ExtrudedSurface(screwHole, [0, -this.offset, 0]);
+                var screwHoleGeom = screwExtrusion.toThreeGeometry();
+                var screwHoleMesh = new THREE.Mesh(screwHoleGeom);
+
+                meshesFront.push(screwHoleMesh);
+
+                //merge meshes and mirror them to finish tensioner
+                var bottomTensioner = this.buildMeshComponent(meshesFront, meshesBack);
+                scene.add(bottomTensioner);
+
+                var d2 = Date.now();
+                console.log("built tensioner in ", (d2 - d1), " ms ");
+            };
+
+            Jug.prototype.BuildSpout = function () {
+                var d1 = Date.now();
+
+                var meshesFront = [];
+                var meshesBack = [];
+
+                var offset = this.offset;
+                var innerRadius = (this.vesselDiameter / 2) - this.rimWidth;
+                var outerRadius = (this.vesselDiameter / 2) + this.margin + offset;
+                var connectorHeight = this.connectorHeight;
+                var innerConnectorHeight = this.rimHeight + this.spoutMargin;
+                var spoutHeight = this.spoutHeight;
+                var spoutLength = this.spoutLength;
+
+                var circleLineIntersect = function (pointA, pointB, circle) {
+                    //find out a and b in the linefunction mx + c = y
+                    var p = circle.center[0];
+                    var q = circle.center[1];
+                    var r = circle.radius;
+
+                    //slope m
+                    var m = (pointA[1] - pointB[1]) / (pointA[0] - pointB[0]);
+                    var c = -(m * pointA[0]) + pointA[1];
+
+                    //fill out the Ax^2 + Bx + C = 0 function
+                    var A = (m * m) + 1;
+                    var B = 2 * ((m * c) - (m * q) - p);
+                    var C = ((q * q) - (r * r) + (p * p) - (2 * c * q) + (c * c));
+
+                    //get discriminator
+                    var disc = (B * B) - 4 * A * C;
+
+                    if (disc < 0)
+                        return null;
+
+                    var x = ((-B + Math.sqrt(disc)) / (2 * A));
+                    var y = m * x + c;
+
+                    if (disc === 0)
+                        return [[x, y]];
+                    else {
+                        var x2 = ((-B - Math.sqrt(disc)) / (2 * A));
+                        var y2 = m * x2 + c;
+
+                        if (x < x2)
+                            return [[x, y], [x2, y2]];
+                        else
+                            return  [[x2, y2], [x, y]];
+                    }
+                };
+
+                var anglePtOnCircle = function (point, radius) {
+                    return Math.acos(point[1] / radius);
+                };
+
+                //tip of the spout to create teh spoutSide
+                var outerIntLineEnd = [0, outerRadius, connectorHeight];
+                var outerSpoutTipPt = [outerRadius + spoutLength, 0, connectorHeight];
+                var outerSpoutConPt = [outerRadius, 0, connectorHeight - spoutHeight];
+
+                var center = [0, 0, connectorHeight];
+                var xAxis = [1, 0, 0];
+                var yAxis = [0, 1, 0];
+
+                var intCircLinePt = circleLineIntersect(outerSpoutTipPt, outerIntLineEnd
+                        , {center: [0, 0], radius: outerRadius})[1];
+                intCircLinePt[2] = connectorHeight;
+
+                var angle = anglePtOnCircle(intCircLinePt, outerRadius);
+
+                var outerSpoutConIntArc = new verb.geom.Arc(
+                        center, xAxis, yAxis, outerRadius, 0, (Math.PI / 2) - angle);
+
+                var outerSpoutCrv = new verb.geom.Line(outerSpoutTipPt, intCircLinePt);
+
+                var vecA = verb.core.Vec.sub(intCircLinePt, outerSpoutTipPt);
+                var vecB = verb.core.Vec.sub(outerSpoutConPt, outerSpoutTipPt);
+
+                var planeOrigin = outerSpoutTipPt;
+                var planeNormal = verb.core.Vec.cross(vecA, vecB);
+
+                var segmentPtA = outerSpoutConIntArc.point(0.5);
+                var segmentPtB = [segmentPtA[0], segmentPtA[1], 0];
+
+                var intersectPtLoc = verb.eval.Intersect.segmentAndPlane(
+                        segmentPtA, segmentPtB, planeOrigin, planeNormal);
+
+                var segment = new verb.geom.Line(segmentPtA, segmentPtB);
+
+                var intersectPt = segment.point(intersectPtLoc.p);
+
+                //creation of the outerSpoutConRidge
+                var tempPtA = intersectPt.slice(0);
+                var tempPtB = outerSpoutConPt.slice(0);
+
+                var outerSpoutConRidge = outerSpoutConIntArc.clone();
+
+                tempPtA[3] = outerSpoutConIntArc._data.controlPoints[1][3];
+                tempPtB[3] = outerSpoutConIntArc._data.controlPoints[0][3];
+
+                outerSpoutConRidge._data.controlPoints[1] = tempPtA;
+                outerSpoutConRidge._data.controlPoints[0] = tempPtB;
+
+                //spoutside is a planarsrf that is not in the xy plane
+                //need to make addition to planarsrf to catch these
+                //planarsrf(point[], bool testPlane)?
+                var loftUVLength = outerSpoutConRidge.controlPoints().length;
+
+                var outerSpoutSide = verb.geom.NurbsSurface.byLoftingCurves(
+                        [outerSpoutCrv, outerSpoutConRidge], loftUVLength);
+
+                var pA = outerSpoutCrv.point(1);
+                pA[3] = 1;
+                var pB = outerSpoutConRidge.point(1);
+                pB[3] = 1;
+
+                outerSpoutSide._data.controlPoints[2][0] = pA;
+                outerSpoutSide._data.controlPoints[2][1] = pB;
+
+                console.log(outerSpoutSide);
+
+                //points to represent a new bottom curve of the jug
+                outerSpoutConIntArc._data.controlPoints.forEach(function (obj) {
+                    obj[2] = 0;
+                });
+
+                //creation of part of CylinderEdge
+                var outerCylEdge = verb.geom.NurbsSurface.byLoftingCurves(
+                        [outerSpoutConRidge, outerSpoutConIntArc], loftUVLength);
+
+                //add parts to meshes
+                var outerSpoutSideMesh = new THREE.Mesh(outerSpoutSide.toThreeGeometry());
+                var outerCylEdgeMesh = new THREE.Mesh(outerCylEdge.toThreeGeometry());
+
+                meshesFront.push(outerSpoutSideMesh);
+                meshesFront.push(outerCylEdgeMesh);
+
+                //extract a closing arc to create a closing surface
+                var outerClosingArc = new verb.geom.Arc(
+                        center, xAxis, yAxis, outerRadius, (Math.PI / 2) - angle, Math.PI * 0.5);
+
+                var outerExtrVec = [0, 0, -connectorHeight];
+
+                var outerClosingExtr = new verb.geom.ExtrudedSurface(outerClosingArc, outerExtrVec);
+                var outerClosingExtrGeom = outerClosingExtr.toThreeGeometry();
+
+                meshesFront.push(new THREE.Mesh(outerClosingExtrGeom));
+
+                //now to create the offset to close the upper layer
+
+                //easiest way to do this is to offset the spout and work from there
+                //need to do the entire ede intersection anyway.
+
+                //get perpendicular vector by rotating vecB's X and Y (is in xy plane anyway)
+                //neem hier nu de offset, maar zou ook de
+                //offset plus de margin plus de rimwidth kunnen nemen
+                var perpVec = [vecB[1], vecB[0], 0];
+                perpVec = verb.core.Vec.normalized(perpVec);
+                perpVec = verb.core.Vec.mul(offset, perpVec);
+
+                //translate the points 
+                var offsetOuterIntLineEnd = verb.core.Vec.add(outerIntLineEnd, perpVec);
+                var offsetOuterSpoutTipPt = verb.core.Vec.add(outerSpoutTipPt, perpVec);
+
+
+                var outerTopInt = circleLineIntersect(offsetOuterSpoutTipPt, offsetOuterIntLineEnd
+                        , {center: [0, 0], radius: innerRadius})
+                var innerTopIntCircLinePt = outerTopInt[outerTopInt.length - 1];
+                innerTopIntCircLinePt[2] = connectorHeight;
+
+                var topAngle = anglePtOnCircle(innerTopIntCircLinePt, innerRadius);
+
+                //first create the closingArc
+                var innerClosingArc = new verb.geom.Arc(
+                        center, xAxis, yAxis, innerRadius, (Math.PI / 2) - topAngle, Math.PI * 0.5);
+
+                var innerExtrVec = [0, 0, -(connectorHeight - innerConnectorHeight)];
+
+                var innerClosingExtr = new verb.geom.ExtrudedSurface(innerClosingArc, innerExtrVec);
+                var innerClosingExtrGeom = innerClosingExtr.toThreeGeometry();
+
+                meshesBack.push(new THREE.Mesh(innerClosingExtrGeom));
+
+                //the create the line that represents the innerSpoutEdge
+                var tempLine = new verb.geom.Line([0, 0, connectorHeight], outerSpoutTipPt);
+                var offsetOuterIntLine = new verb.geom.Line(offsetOuterIntLineEnd, offsetOuterSpoutTipPt);
+
+                var innerSpoutTipPt = verb.geom.Intersect.curves(tempLine, offsetOuterIntLine, 1e-6)[0].point0;
+                var innerSpoutCrv = new verb.geom.Line(innerSpoutTipPt, innerTopIntCircLinePt);
+
+                //now I can close the topLayer
+                var topBridgeLineHalf = new verb.geom.Line(innerClosingArc.point(1), outerIntLineEnd);
+                var topBridgeLineSpout = new verb.geom.Line(innerSpoutTipPt, outerSpoutTipPt);
+
+                var topPlanarSrfGeom = OpenPlus.PlanarSrf([topBridgeLineHalf
+                            , topBridgeLineSpout, innerClosingArc, outerClosingArc
+                            , innerSpoutCrv, outerSpoutCrv
+                ]);
+
+                var topPlanarSrfMesh = new THREE.Mesh(topPlanarSrfGeom);
+                topPlanarSrfMesh.translateZ(connectorHeight);
+
+                meshesFront.push(topPlanarSrfMesh);
+
+                //depending on the z height of the innerRidge we know if we will also need
+                //a bottomAngle
+                var innerSpoutLength = innerSpoutTipPt[0] - innerRadius;
+                var innerSpoutHeight = spoutHeight * (innerSpoutLength / spoutLength);
+
+                var innerSpoutRidge;
+                var innerSpoutConRidge;
+                var innerSpoutConIntArc;
+
+                var aboveConnectorHeight = (connectorHeight - innerSpoutHeight) > innerConnectorHeight;
+
+                if (aboveConnectorHeight) {
+                    innerSpoutConIntArc = new verb.geom.Arc(
+                            center, xAxis, yAxis, innerRadius, 0, (Math.PI / 2) - topAngle);
+
+                    var innerSpoutConPt = [innerRadius, 0, connectorHeight - innerSpoutHeight];
+
+                    innerSpoutRidge = new verb.geom.Line(innerSpoutConPt, innerSpoutTipPt);
+                } else {
+                    innerSpoutHeight = connectorHeight - innerConnectorHeight;
+
+                    innerSpoutLength = spoutLength * (innerSpoutHeight / spoutHeight);
+
+                    var innerSpoutConPt = [innerSpoutTipPt[0] - innerSpoutLength
+                                , 0, connectorHeight - innerSpoutHeight];
+
+                    innerSpoutRidge = new verb.geom.Line(innerSpoutConPt, innerSpoutTipPt);
+
+                    var transVec = verb.core.Vec.sub(offsetOuterIntLineEnd, offsetOuterSpoutTipPt);
+                    var transPt = verb.core.Vec.add(innerSpoutConPt, transVec);
+
+                    var innerBottomIntCircLinePt = circleLineIntersect(innerSpoutConPt, transPt
+                            , {center: [0, 0], radius: innerRadius})[1];
+                    innerBottomIntCircLinePt[2] = connectorHeight;
+
+                    var bottomAngle = anglePtOnCircle(innerBottomIntCircLinePt, innerRadius);
+
+                    innerSpoutConIntArc = new verb.geom.Arc(center, xAxis, yAxis,
+                            innerRadius, (Math.PI / 2) - bottomAngle, (Math.PI / 2) - topAngle);
+
+                    //make the last planarCrv here
+
+                    center = [0, 0, innerConnectorHeight];
+
+                    var innerSpoutClosingArc = new verb.geom.Arc(center, xAxis, yAxis,
+                            innerRadius, 0, (Math.PI / 2) - bottomAngle);
+
+                    var spoutPlateCrv = new verb.geom.Line(
+                            innerSpoutClosingArc.point(0), innerSpoutRidge.point(0));
+
+                    var spoutPlate = verb.geom.NurbsSurface.byLoftingCurves(
+                            [spoutPlateCrv, innerSpoutClosingArc], loftUVLength);
+
+                    spoutPlate._data.controlPoints[0][0] = spoutPlateCrv._data.controlPoints[0];
+                    spoutPlate._data.controlPoints[0][1] = innerSpoutClosingArc._data.controlPoints[0];
+
+                    //add parts to meshes
+                    var spoutPlateMesh = new THREE.Mesh(spoutPlate.toThreeGeometry());
+
+                    meshesBack.push(spoutPlateMesh);
+                }
+
+                vecA = verb.core.Vec.sub(innerTopIntCircLinePt, innerSpoutTipPt);
+                vecB = verb.core.Vec.sub(innerSpoutConPt, innerSpoutTipPt);
+
+                planeOrigin = innerSpoutTipPt;
+                planeNormal = verb.core.Vec.cross(vecA, vecB);
+
+                segmentPtA = innerSpoutConIntArc.point(0.5);
+                segmentPtB = [segmentPtA[0], segmentPtA[1], 0];
+
+                intersectPtLoc = verb.eval.Intersect.segmentAndPlane(
+                        segmentPtA, segmentPtB, planeOrigin, planeNormal);
+
+                segment = new verb.geom.Line(segmentPtA, segmentPtB);
+
+                intersectPt = segment.point(intersectPtLoc.p);
+
+                //creation of the outerSpoutConRidge
+                tempPtA = intersectPt.slice(0);
+                tempPtB = innerSpoutConIntArc.point(0);
+
+                innerSpoutConRidge = innerSpoutConIntArc.clone();
+
+                tempPtA[3] = innerSpoutConIntArc._data.controlPoints[1][3];
+                tempPtB[2] = innerSpoutConPt[2];
+                tempPtB[3] = innerSpoutConIntArc._data.controlPoints[0][3];
+
+                innerSpoutConRidge._data.controlPoints[1] = tempPtA;
+                innerSpoutConRidge._data.controlPoints[0] = tempPtB;
+
+                //spoutside is a planarsrf that is not in the xy plane
+                //need to make addition to planarsrf to catch these
+                //planarsrf(point[], bool testPlane)?
+                loftUVLength = innerSpoutConRidge.controlPoints().length;
+
+                var innerSpoutSide = verb.geom.NurbsSurface.byLoftingCurves(
+                        [innerSpoutRidge, innerSpoutConRidge], loftUVLength);
+
+                innerSpoutSide._data.controlPoints[0][0] = innerSpoutRidge._data.controlPoints[0];
+                innerSpoutSide._data.controlPoints[0][1] = innerSpoutConRidge._data.controlPoints[0];
+
+                //points to represent a new bottom curve of the jug
+                innerSpoutConIntArc._data.controlPoints.forEach(function (obj) {
+                    obj[2] = obj[2] - (connectorHeight - innerConnectorHeight);
+                });
+
+                //creation of part of CylinderEdge
+                var innerCylEdge = verb.geom.NurbsSurface.byLoftingCurves(
+                        [innerSpoutConRidge, innerSpoutConIntArc], loftUVLength);
+
+                innerCylEdge._data.controlPoints[0][0] = innerSpoutConRidge._data.controlPoints[0];
+                innerCylEdge._data.controlPoints[0][1] = innerSpoutConIntArc._data.controlPoints[0];
+
+                //add parts to meshes
+                var innerSpoutSideMesh = new THREE.Mesh(innerSpoutSide.toThreeGeometry());
+                var innerCylEdgeMesh = new THREE.Mesh(innerCylEdge.toThreeGeometry());
+
+                meshesBack.push(innerSpoutSideMesh);
+                meshesBack.push(innerCylEdgeMesh);
+
+                //merge meshes and mirror them to finish tensioner
+                this.spout = this.buildMeshComponent(meshesFront, meshesBack);
+
+                var d2 = Date.now();
+                console.log("built spout in ", (d2 - d1), " ms ");
+            };
+
+            Jug.prototype.BuildInnerVessel = function () {
+                var d1 = Date.now();
+
+                var meshesFront = [];
+                var meshesBack = [];
+
+                var tensionerGap = this.tensionerGap;
+                var tensionerHeight = this.tensionerHeight;
+                var extrusionHeight = this.rimHeight - (tensionerGap + tensionerHeight);
+                var midConnectionHeight = tensionerHeight + tensionerGap + extrusionHeight;
+                var midRadius = (this.vesselDiameter / 2) + this.margin;
+                var innerRadius = (this.vesselDiameter / 2) - this.rimWidth;
+                var outerRadius = midRadius + this.offset;
+
+                var center = [0, 0, 0];
+                var xAxis = [1, 0, 0];
+                var yAxis = [0, 1, 0];
+
+                //first make the side of the spout because of change of centerHeight
+                var spoutWallMidCurve = new verb.geom.Arc(center, xAxis, yAxis, midRadius,
+                        Math.PI * 1.5, Math.PI * 2);
+
+                var spoutWallMidExtr =
+                        new verb.geom.ExtrudedSurface(spoutWallMidCurve, [0, 0, this.rimHeight]);
+
+                meshesFront.push(new THREE.Mesh(spoutWallMidExtr.toThreeGeometry()));
+
+                //change the height of the center for the next part
+                center[2] = midConnectionHeight;
+
+                var spoutWallInnerCurve = new verb.geom.Arc(center, xAxis, yAxis, innerRadius,
+                        Math.PI * 1.5, Math.PI * 2);
+
+                var spoutWallInnerExtr =
+                        new verb.geom.ExtrudedSurface(spoutWallInnerCurve, [0, 0, this.spoutMargin]);
+
+                meshesFront.push(new THREE.Mesh(spoutWallInnerExtr.toThreeGeometry()));
+
+                //now do the handle side of things
+                var midRadiusCurve = new verb.geom.Arc(center, xAxis, yAxis, midRadius,
+                        Math.PI / 2, Math.PI);
+
+                //extrusion of inner wall
+                var midRadiusExtrude =
+                        new verb.geom.ExtrudedSurface(midRadiusCurve, [0, 0, -extrusionHeight]);
+
+                meshesBack.push(new THREE.Mesh(midRadiusExtrude.toThreeGeometry()));
+
+                //offset of first curve to create first horizontal plane
+                var innerRadiusCurve = new verb.geom.Arc(center, xAxis, yAxis, innerRadius,
+                        Math.PI / 2, Math.PI);
+
+                //lines that connect the two curves
+                var startPoint = innerRadiusCurve.point(0);
+                var endPoint = midRadiusCurve.point(0);
+
+                var bridgeLineA = new verb.geom.Line(startPoint, endPoint);
+
+                startPoint[1] = -startPoint[1];
+                endPoint[1] = -endPoint[1];
+
+                var bridgeLineB = new verb.geom.Line(startPoint, endPoint);
+
+                var middleConnection = OpenPlus.PlanarSrf(
+                        [midRadiusCurve, bridgeLineA, innerRadiusCurve, bridgeLineB]);
+
+                //need to do this translation because th eplanar recognition from
+                //path is not yet working
+                var middleConnectionMesh = new THREE.Mesh(middleConnection);
+                middleConnectionMesh.translateZ(midConnectionHeight);
+
+                meshesBack.push(middleConnectionMesh);
+
+                //can rotate this middleConnection for the spout side as well
+                var middleConMeshRot = middleConnectionMesh.clone();
+                middleConMeshRot.rotateOnAxis(new THREE.Vector3(0, 0, 1), Math.PI);
+
+                meshesBack.push(middleConMeshRot);
+
+                //extrude the innerCurve
+                var innerRadiusExtrude = new verb.geom.ExtrudedSurface
+                        (innerRadiusCurve, [0, 0, this.connectorHeight - midConnectionHeight]);
+
+                meshesFront.push(new THREE.Mesh(innerRadiusExtrude.toThreeGeometry()));
+
+                //create top horizontal plane
+                var outerRadiusCurve = new verb.geom.Arc(center, xAxis, yAxis, outerRadius,
+                        Math.PI / 2, Math.PI);
+
+                startPoint = innerRadiusCurve.point(0);
+                endPoint = outerRadiusCurve.point(0);
+
+                bridgeLineA = new verb.geom.Line(startPoint, endPoint);
+
+                startPoint[1] = -startPoint[1];
+                endPoint[1] = -endPoint[1];
+
+                bridgeLineB = new verb.geom.Line(startPoint, endPoint);
+
+                var topLayerGeom = OpenPlus.PlanarSrf(
+                        [outerRadiusCurve, bridgeLineA, innerRadiusCurve, bridgeLineB]);
+
+                //need to do this translation because th eplanar recognition from
+                //path is not yet working
+                var topLayerMesh = new THREE.Mesh(topLayerGeom);
+                topLayerMesh.translateZ(this.connectorHeight);
+
+                meshesFront.push(topLayerMesh);
+
+                //merge meshes and mirror them to finish tensioner
+                var innerVesselMesh = this.buildMeshComponent(meshesFront, meshesBack);
+                scene.add(innerVesselMesh);
+
+                //time the process
+                var d2 = Date.now();
+                console.log("built innerhalf in ", (d2 - d1), " ms ");
+            };
+
+            Jug.prototype.BuildVesselHandle = function () {
+                var d1 = Date.now();
+
+                var meshesFront = [];
+                var meshesBack = [];
+
+                var tensionerGap = this.tensionerGap;
+                var tensionerHeight = this.tensionerHeight;
+                var bottomConnectionHeight = tensionerHeight + tensionerGap;
+                var midRadius = (this.vesselDiameter / 2) + this.margin;
+                var outerRadius = midRadius + this.offset;
+
+                var center = [0, 0, bottomConnectionHeight];
+                var xAxis = [1, 0, 0];
+                var yAxis = [0, 1, 0];
+
+                var innerRadiusCurve = new verb.geom.Arc(center, xAxis, yAxis, midRadius,
+                        Math.PI / 2, Math.PI);
+
+                var outerRadiusCurve = new verb.geom.Arc(center, xAxis, yAxis, outerRadius,
+                        Math.PI / 2, Math.PI);
+
+                //lines that connect the two curves
+                var startPoint = innerRadiusCurve.point(0);
+                var endPoint = outerRadiusCurve.point(0);
+
+                var bridgeLineA = new verb.geom.Line(startPoint, endPoint);
+
+                startPoint[1] = -startPoint[1];
+                endPoint[1] = -endPoint[1];
+
+                var bridgeLineB = new verb.geom.Line(startPoint, endPoint);
+
+                var middleConnection = OpenPlus.PlanarSrf(
+                        [outerRadiusCurve, bridgeLineA, innerRadiusCurve, bridgeLineB]);
+
+                //need to do this translation because the planar recognition from
+                //path is not yet working
+                var middleConnectionMesh = new THREE.Mesh(middleConnection);
+                middleConnectionMesh.translateZ(bottomConnectionHeight);
+
+                meshesBack.push(middleConnectionMesh);
+
+                //extrude curve up till vesselHeight - tensionerHeight
+                if (this.connectorHeight - tensionerHeight > tensionerHeight + tensionerGap)
+                {
+                    var extrusionHeight = this.connectorHeight - (tensionerHeight * 2) - tensionerGap;
+                    var outerHalf = new verb.geom.ExtrudedSurface(outerRadiusCurve,
+                            [0, 0, extrusionHeight]);
+
+                    var outerHalfMesh = new THREE.Mesh(outerHalf.toThreeGeometry());
+
+                    meshesBack.push(outerHalfMesh);
+                }
+
+                var center = [0, 0, this.connectorHeight - tensionerHeight];
+
+                var outerHandleCurve = new verb.geom.Arc(center, xAxis, yAxis, outerRadius,
+                        Math.PI / 2, Math.PI - this.vesselTopAngleStart);
+
+                var extrusionHeight = tensionerHeight;
+                var outerHalfHandle = new verb.geom.ExtrudedSurface(outerHandleCurve,
+                        [0, 0, extrusionHeight]);
+
+                var outerHalfHandleMesh = new THREE.Mesh(outerHalfHandle.toThreeGeometry());
+
+                meshesBack.push(outerHalfHandleMesh);
+
+                //merge meshes and mirror them to finish tensioner
+                var vesselToHandleMesh = this.buildMeshComponent(meshesFront, meshesBack);
+                scene.add(vesselToHandleMesh);
+
+                //time the process
+                var d2 = Date.now();
+                console.log("built vesselHalf in ", (d2 - d1), " ms ");
+            };
+
+            Jug.prototype.BuildHandleTensioner = function () {
+                var d1 = Date.now();
+
+                var meshesFront = [];
+                var meshesBack = [];
+
+                var offset = this.offset;
+                var screwOffset = this.screwOffset;
+                var tensionerHeight = this.tensionerHeight;
+                var connectorHeight = this.connectorHeight;
+                var handleHeight = (connectorHeight / 2) > (tensionerHeight * 2) ?
+                        connectorHeight / 2 : tensionerHeight * 2;
+                var outerRadius = (this.vesselDiameter / 2) + this.margin + offset;
+                var innerHandleRadius = (this.handleDiameter / 2) + this.margin;
+                var outerHandleRadius = innerHandleRadius + offset;
+                var screwRadius = this.screwDiameter / 2;
+
+                var center = [-(outerRadius + this.handleLength + outerHandleRadius), 0,
+                    connectorHeight - handleHeight];
+                var xAxis = [1, 0, 0];
+                var yAxis = [0, 1, 0];
+
+                var innerArc = new verb.geom.Arc(center, xAxis, yAxis, innerHandleRadius,
+                        (Math.PI) - this.handleTensionerAngle, Math.PI);
+
+                var innerArcStart = innerArc.point(0);
+                var innerStartPoint = [center[0] + outerHandleRadius + tensionerHeight,
+                    innerArcStart[1], center[2]];
+
+                var innerStartLine = new verb.geom.Line(innerStartPoint, innerArcStart);
+
+                //now I have to manually offset this again.
+                var offsetY = innerArcStart[1] + offset;
+                var minAngle = Math.asin(offsetY / outerHandleRadius);
+
+                var outerArc = new verb.geom.Arc(center, xAxis, yAxis, outerHandleRadius,
+                        minAngle, Math.PI);
+
+                var outerArcStart = outerArc.point(0);
+                var outerStartPoint = [innerStartPoint[0], offsetY, innerStartPoint[2]];
+
+                var outerStartLine = new verb.geom.Line(outerStartPoint, outerArcStart);
+
+                var bridgeLineA = new verb.geom.Line(innerStartPoint, outerStartPoint);
+                var bridgeLineB = new verb.geom.Line(outerArc.point(1), innerArc.point(1));
+
+                //now create the horizontal planar surface
+                var bottomHandleGeom = OpenPlus.PlanarSrf([innerArc, innerStartLine
+                            , bridgeLineA, outerStartLine, outerArc, bridgeLineB]);
+
+                var bottomHandleMesh = new THREE.Mesh(bottomHandleGeom);
+                bottomHandleMesh.translateZ(center[2]);
+
+                var topHandleMesh = bottomHandleMesh.clone();
+                topHandleMesh.translateZ(handleHeight);
+
+                meshesBack.push(bottomHandleMesh);
+                meshesFront.push(topHandleMesh);
+
+                var extrusionVec = [0, 0, handleHeight];
+
+                var innerArcExtr = new verb.geom.ExtrudedSurface(innerArc, extrusionVec);
+                var outerArcExtr = new verb.geom.ExtrudedSurface(outerArc, extrusionVec);
+
+                var innerArcMesh = new THREE.Mesh(innerArcExtr.toThreeGeometry());
+                var outerArcMesh = new THREE.Mesh(outerArcExtr.toThreeGeometry());
+
+                meshesFront.push(innerArcMesh);
+                meshesBack.push(outerArcMesh);
+
+                extrusionVec = [0, 0, handleHeight - tensionerHeight];
+
+                var bridgeLineAExtr = new verb.geom.ExtrudedSurface(bridgeLineA, extrusionVec);
+                var bridgeLineAMesh = new THREE.Mesh(bridgeLineAExtr.toThreeGeometry());
+
+                meshesBack.push(bridgeLineAMesh);
+
+                //now to yet again create the screw holes and tension flaps
+                var bottomStart = innerStartLine.point(0);
+                var bottomEnd = innerStartLine.point(1);
+
+                var topStart = [bottomEnd[0], bottomEnd[1] - handleHeight, bottomEnd[2]];
+                var topEnd = [bottomStart[0], bottomStart[1] - handleHeight, bottomStart[2]];
+
+                var innerTopLine = new verb.geom.Line(topStart, topEnd);
+
+                var bridgeLineA = new verb.geom.Line(bottomEnd, topStart);
+                var bridgeLineB = new verb.geom.Line(topEnd, bottomStart);
+
+                var circleCenter = [bottomStart[0] - (screwOffset + screwRadius),
+                    bottomEnd[1] - (screwOffset + screwRadius), bottomEnd[2]];
+                var screwHole = new verb.geom.Circle(circleCenter, xAxis, yAxis, screwRadius);
+                screwHole = screwHole.reverse();
+
+                var innerFlapGeom = OpenPlus.PlanarSrf([
+                    innerStartLine, bridgeLineA,
+                    innerTopLine, bridgeLineB,
+                    screwHole
+                ], true);
+
+                var innerFlapMesh = new THREE.Mesh(innerFlapGeom);
+
+                var tempPoint = bottomStart;
+                innerFlapMesh.position.set(tempPoint[0], tempPoint[1], tempPoint[2]);
+                innerFlapMesh.geometry.applyMatrix(new THREE.Matrix4().makeTranslation(-tempPoint[0], -tempPoint[1], 0));
+                innerFlapMesh.rotateX(-Math.PI / 2);
+                innerFlapMesh.updateMatrix();
+
+                meshesBack.push(innerFlapMesh);
+
+                bottomStart = outerStartLine.point(0);
+                bottomEnd = outerStartLine.point(1);
+
+                topStart = [bottomEnd[0], bottomEnd[1] - handleHeight, bottomEnd[2]];
+                topEnd = [bottomStart[0], bottomStart[1] - handleHeight, bottomStart[2]];
+
+                var outerTopLine = new verb.geom.Line(topStart, topEnd);
+
+                var bridgeLineA = new verb.geom.Line(bottomEnd, topStart);
+                var bridgeLineB = new verb.geom.Line(topEnd, bottomStart);
+
+                var circleCenter = [bottomStart[0] - (screwOffset + screwRadius),
+                    bottomEnd[1] - (screwOffset + screwRadius), bottomEnd[2]];
+                var screwHole = new verb.geom.Circle(circleCenter, xAxis, yAxis, screwRadius);
+                screwHole = screwHole.reverse();
+
+                var outerFlapGeom = OpenPlus.PlanarSrf([
+                    outerStartLine, bridgeLineA,
+                    outerTopLine, bridgeLineB,
+                    screwHole
+                ], true);
+
+                var outerFlapMesh = new THREE.Mesh(outerFlapGeom);
+
+                var tempPoint = bottomStart;
+                outerFlapMesh.position.set(tempPoint[0], tempPoint[1], tempPoint[2]);
+                outerFlapMesh.geometry.applyMatrix(new THREE.Matrix4().makeTranslation(-tempPoint[0], -tempPoint[1], 0));
+                outerFlapMesh.rotateX(-Math.PI / 2);
+                outerFlapMesh.updateMatrix();
+
+                meshesFront.push(outerFlapMesh);
+
+                //create extrusion of screwHole
+                center = [circleCenter[0], innerStartLine.point(0)[1], circleCenter[2] + (tensionerHeight / 2)];
+                yAxis = [0, 0, 1];
+                screwHole = new verb.geom.Circle(center, xAxis, yAxis, screwRadius);
+
+                var screwExtrusion = new verb.geom.ExtrudedSurface(screwHole, [0, offset, 0]);
+                var screwHoleGeom = screwExtrusion.toThreeGeometry();
+                var screwHoleMesh = new THREE.Mesh(screwHoleGeom);
+
+                meshesBack.push(screwHoleMesh);
+
+                var handleTensionerMesh = this.buildMeshComponent(meshesFront, meshesBack);
+
+                scene.add(handleTensionerMesh);
+
+                //time the process
+                var d2 = Date.now();
+                console.log("built handleTensioner in ", (d2 - d1), " ms ");
+            };
+
+            Jug.prototype.BuildHandleBridge = function () {
+                var d1 = Date.now();
+
+                var meshesFront = [];
+                var meshesBack = [];
+
+                var tensionerGap = this.tensionerGap;
+                var handleHeight = this.tensionerHeight;
+                var outerRadius = (this.vesselDiameter / 2) + this.margin + this.offset;
+                var handleEnd = -(outerRadius + this.handleLength - handleHeight);
+
+                var center = [0, 0, this.connectorHeight];
+                var xAxis = [1, 0, 0];
+                var yAxis = [0, 1, 0];
+
+                var outerVesselCurve = new verb.geom.Arc(center, xAxis, yAxis, outerRadius,
+                        Math.PI - this.vesselTopAngleStart, Math.PI - this.vesselTopAngleEnd);
+
+                var vesselPointStart = outerVesselCurve.point(0);
+                var vesselPointEnd = outerVesselCurve.point(1);
+                var handlePointStart = [handleEnd, vesselPointEnd[1], this.connectorHeight];
+                var handlePointEnd = [handleEnd, vesselPointStart[1], this.connectorHeight];
+
+                var handleSideInnerCurve = new verb.geom.Line(vesselPointEnd, handlePointStart);
+                var handleSideOuterCurve = new verb.geom.Line(handlePointEnd, vesselPointStart);
+                var outerHandleCurve = new verb.geom.Line(handlePointStart, handlePointEnd);
+
+                var midHandleCurve = new verb.geom.Arc(center, xAxis, yAxis, outerRadius,
+                        Math.PI - this.vesselTopAngleEnd, Math.PI);
+
+                //making of extrusions
+                var handleHeightVec = [0, 0, -handleHeight];
+
+                var topHandleGeom = OpenPlus.PlanarSrf([outerVesselCurve,
+                    handleSideInnerCurve, handleSideOuterCurve, outerHandleCurve]);
+
+                var topHandleMesh = new THREE.Mesh(topHandleGeom);
+                topHandleMesh.translateZ(this.connectorHeight);
+
+                var topHandleMeshMirror = topHandleMesh.clone();
+                topHandleMeshMirror.translateZ(-handleHeight);
+
+                meshesFront.push(topHandleMesh);
+                meshesBack.push(topHandleMeshMirror);
+
+                var outerSide = new verb.geom.ExtrudedSurface(handleSideOuterCurve, handleHeightVec);
+                var innerSide = new verb.geom.ExtrudedSurface(handleSideInnerCurve, handleHeightVec);
+
+                var outerSideMesh = new THREE.Mesh(outerSide.toThreeGeometry());
+                var innerSideMesh = new THREE.Mesh(innerSide.toThreeGeometry());
+
+                meshesBack.push(outerSideMesh);
+                meshesBack.push(innerSideMesh);
+
+                var midhandle = new verb.geom.ExtrudedSurface(midHandleCurve, handleHeightVec);
+
+                var midhandleMesh = new THREE.Mesh(midhandle.toThreeGeometry(), this.material);
+
+                meshesFront.push(midhandleMesh);
+
+                var handleMesh = this.buildMeshComponent(meshesFront, meshesBack);
+                scene.add(handleMesh);
+
+                //time the process
+                var d2 = Date.now();
+                console.log("built handleBridge in ", (d2 - d1), " ms ");
+            };
+
+            Jug.prototype.Error = function (e) {
+                console.log(e);
+            };
+
+            Jug.prototype.setSpoutHeight = function (point) {
+                this.spoutHeight = this.connectorHeight - point[2];
+
+                removeFromScene(this.spout);
+                this.BuildSpout();
+                scene.add(this.spout);
+            };
+
+            Jug.prototype.setSpoutLength = function (point) {
+                this.spoutLength = point[0] - (this.vesselDiameter / 2) - this.margin - this.offset;
+
+                removeFromScene(this.spout);
+                this.BuildSpout();
+                scene.add(this.spout);
+            };
+
+            Jug.prototype.buildMeshComponent = function (meshesFront, meshesBack) {
+                //have to add a part for meshes that do not need to be mirrored
+
+                var mS = (new THREE.Matrix4()).identity();
+                mS.elements[5] = -1;
+
+                var mergedGeom = new THREE.Geometry();
+
+                for (var i = 0; i < meshesFront.length; i++) {
+                    var tempMesh = meshesFront[i];
+
+                    tempMesh.updateMatrix();
+                    mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 0);
+
+                    var tempMeshClone = tempMesh.clone();
+
+                    tempMeshClone.applyMatrix(mS);
+                    tempMeshClone.updateMatrix();
+
+                    mergedGeom.merge(tempMeshClone.geometry, tempMeshClone.matrix, 1);
+                }
+
+                for (var i = 0; i < meshesBack.length; i++) {
+                    var tempMesh = meshesBack[i];
+
+                    tempMesh.updateMatrix();
+                    mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 1);
+
+                    var tempMeshClone = tempMesh.clone();
+
+                    tempMeshClone.applyMatrix(mS);
+                    tempMeshClone.updateMatrix();
+
+                    mergedGeom.merge(tempMeshClone.geometry, tempMeshClone.matrix, 0);
+                }
+
+                var materials = [this.materialFront, this.materialBack];
+                var resultMesh = new THREE.Mesh(mergedGeom, new THREE.MeshFaceMaterial(materials));
+
+                return resultMesh;
+            };
+
+
+            OpenPlus = {
+                EqualPoints: function (pointA, pointB) {
+                    if (Math.abs(pointA[0] - pointB[0]) > 1e-6)
+                        return false;
+                    if (Math.abs(pointA[1] - pointB[1]) > 1e-6)
+                        return false;
+                    if (Math.abs(pointA[2] - pointB[2]) > 1e-6)
+                        return false;
+                    return true;
+                },
+                JoinCurves: function (tempCurves) {
+
+                    var curves = tempCurves.slice(0);
+
+                    var CurveLine = function (curve) {
+                        this.start = curve.point(0);
+                        this.end = curve.point(1);
+                        this.curves = [curve];
+                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
+                    };
+
+                    CurveLine.prototype.push = function (newCurve) {
+                        this.end = newCurve.point(1);
+                        this.curves.push(newCurve);
+                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
+                    };
+
+                    CurveLine.prototype.unshift = function (newCurve) {
+                        this.start = newCurve.point(0);
+                        this.curves.unshift(newCurve);
+                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
+                    };
+
+                    var curveLine = new CurveLine(curves.splice(0, 1)[0]);
+                    var connectedCurves = [curveLine];
+
+                    //sure this algorithm is horrible, but should work for now
+                    if (curves.length !== 0) {
+
+                        for (var i = 0; i < connectedCurves.length; i++) {
+
+                            var tempLine = connectedCurves[i];
+
+                            if (!tempLine.closed) {
+
+                                for (var j = 0; j < curves.length; j++) {
+
+                                    var curve = curves[j];
+
+                                    var curveStart = curve.point(0);
+                                    var curveEnd = curve.point(1);
+
+                                    if (OpenPlus.EqualPoints(curveStart, tempLine.end)) {
+                                        tempLine.push(curve);
+                                    } else if (OpenPlus.EqualPoints(curveEnd, tempLine.start)) {
+                                        tempLine.unshift(curve);
+                                    } else if (OpenPlus.EqualPoints(curveStart, tempLine.start)) {
+                                        tempLine.unshift(curve.reverse());
+                                    } else if (OpenPlus.EqualPoints(curveEnd, tempLine.end)) {
+                                        tempLine.push(curve.reverse());
+                                    } else {
+                                        continue;
+                                    }
+
+                                    curves.splice(j, 1);
+                                    j = -1;
+
+                                    if (tempLine.closed)
+                                        break;
+                                }
+                            }
+
+                            if (curves.length === 0)
+                                break;
+                            else
+                                connectedCurves.push(new CurveLine(curves.splice(0, 1)[0]));
+
+                        }
+                    } else
+                        return null;
+
+                    var returnArray = [];
+                    for (var i = 0; i < connectedCurves.length; i++) {
+                        returnArray[i] = connectedCurves[i].curves;
+                    }
+
+                    return returnArray;
+                },
+                PlanarSrf: function (curves, willFlip) {
+
+                    var flipped = willFlip || false;
+
+                    //first need to check if all are curves
+
+                    //create joined lines, should check if these are inside each other or not
+                    //this will define if an object with or without hole will be made
+                    var curveLines = OpenPlus.JoinCurves(curves);
+
+                    //now I need to check if the curves are planar
+                    //http://verbnurbs.com/docs/core/Trig/#ispointinplane
+                    //http://threejs.org/docs/#Reference/Math/Plane
+
+                    //then check if curves intersect or are inside each other
+                    //those that are inside a different path need to create their own geometry
+
+                    var path = new THREE.Path;
+                    path.autoClose = false;
+
+                    for (var i = 0; i < curveLines.length; i++) {
+                        var tempCurves = curveLines[i];
+
+                        var startPoint = tempCurves[0].point(0);
+                        var vertices = [new THREE.Vector2(startPoint[0], startPoint[1])];
+
+                        for (var j = 0; j < tempCurves.length; j++) {
+                            var curve = tempCurves[j].toThreeGeometry();
+
+                            var verticeClone = curve.vertices.slice(1);
+
+                            vertices = vertices.concat(verticeClone);
+                        }
+
+                        path.fromPoints(vertices);
+                    }
+
+                    var shape = path.toShapes(flipped, false)[0];
+
+                    var geometry = new THREE.ShapeGeometry(shape, {curveSegments: 100});
+
+                    return geometry;
+                }
+            };
+
+            var jug = new Jug();
+          
+            threeRender();
+
+        </script>
+
+    </body>
+
+</html>
