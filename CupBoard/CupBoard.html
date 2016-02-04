@@ -19,7 +19,30 @@
     <body>
 
         <script>
-
+            Leg = function(diameter, height){
+                this.diameter = diameter;
+                this.height = height;
+                this.mesh;
+                
+            };
+            
+            Leg.prototype.build = function (){
+                var radius = this.diameter / 2;
+                var height = this.height;
+                
+                var center = [0,0,0];
+                var xAxis = [1,0,0];
+                var zAxis = [0,0,1];
+                
+                var base = new verb.geom.CylindricalSurface(
+                        zAxis, xAxis, center, height, radius);
+                
+                var baseGeom = base.toThreeGeometry();
+                
+                this.mesh = new THREE.Mesh(baseGeom);
+                
+            };
+            
             CupBoard = function () {
                 //overal variables
                 this.height;
@@ -42,7 +65,10 @@
             };
 
             CupBoard.prototype.Build = function () {
-                console.log("I'm building bro");
+                var leg = new Leg(2, 20);
+                
+                scene.add(leg);
+                
             };
 
             var cupboard = new CupBoard();
