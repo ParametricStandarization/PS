@@ -12,49 +12,66 @@
             body { 
                 margin: 0; 
                 background: white;
+                
+                text-align: center;
             }
+            
+            .centerDiv {
+                
+                position: absolute;
+                left: 50%;
+                top: 5%;
+                
+                text-align: left;
+            }
+            
+            .titleContainer {
+                font-family:"Tahoma";
+                font-weight: bold;
+                
+                position: relative;
+                left: -50%;
+                
+                z-index: -1;
+            }
+            
+            #objectContainer {
+            }
+            
+            .mainTitle {
+                font-size: 1000%;
+            }
+            
+            .product {
+                font-size: 300%;
+            }
+            
+            .part {
+                font-size: 150%;
+                
+                text-align: left;
+            }
+            
+            
         </style>
     </head>
     <body>
+        
+        <div id="objectContainer">
+        </div>
+        
+        <div class="centerDiv">
+            <div class="titleContainer">
+                <span class="mainTitle">PS</span><span class="mainTitle">/</span><span class="product">JUG</span><br>
+                <span class="part">SINNERLIG</span><span class="part"> + </span><span class="part">BRASS</span>
+            </div>
+        </div>
 
         <script>
 
             threeSetup(true);
 
-
-            var loader = new THREE.STLLoader();
-
-            var vaseMaterial = new THREE.MeshPhongMaterial({
-                color: 0x8b9dc3,
-                specular: 0x111111,
-                shininess: 200,
-                transparent: true,
-                opacity: 0.1
-                , shading: THREE.SmoothShading,
-                depthWrite: false
-            });
-
-            loader.load('vases/SINNERLIG_POT.stl', function (geometry) {
-                var mesh = new THREE.Mesh(geometry, vaseMaterial);
-
-                mesh.position.set(0, 0, -18.6);
-
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-
-                scene.add(mesh);
-
-            });
-
-
             Jug = function () {
-
-
-                //    this.material = new THREE.MeshNormalMaterial( { 
-                //            side: THREE.DoubleSide
-                //            , wireframe: false
-                //            , transparent: true, opacity: 0.4
-                //        } );
 
                 this.materialFront = new THREE.MeshPhongMaterial({
                     color: 0xffb6c1
@@ -79,8 +96,7 @@
                 //set variables for the Jug
                 this.rimWidth = 1;
                 this.vesselDiameter = 21;
-                this.handleDiameter = 5;
-                this.connectorHeight = 10;
+                this.handleDiameter = 4;
                 this.handleLength = 5;
 
                 this.tensionerGap = 0.5;
@@ -102,10 +118,8 @@
                 this.SetArcAngles();
 
                 this.tensionerHeight = this.screwDiameter + (this.screwOffset * 2);
-
-                this.rimHeight = this.connectorHeight - (this.connectorHeight * 0.2);
-                if (this.rimHeight < (this.tensionerHeight + this.tensionerGap + this.minRimCover))
-                    this.rimHeight = (this.tensionerHeight + this.tensionerGap + this.minRimCover);
+                this.rimHeight = 7;
+                this.connectorHeight = this.rimHeight + this.tensionerHeight;
 
                 //removeable objects
                 this.spout;
@@ -116,28 +130,54 @@
                 //build jug
                 this.BuildVesselTensioner();
                 this.BuildSpout();
-                scene.add(this.spout);
                 this.BuildInnerVessel();
                 this.BuildVesselHandle();
                 this.BuildHandleTensioner();
                 this.BuildHandleBridge();
+                
+                scene.add(this.spout);
+                scene.add(this.innerVesselMesh);
+                scene.add(this.vesselToHandleMesh);
+                scene.add(this.handleTensionerMesh);
+                scene.add(this.bottomTensioner);
+                scene.add(this.handleMesh);
 
                 var outerRadius = (this.vesselDiameter / 2) + this.margin + this.offset;
                 var spoutTip = [outerRadius + this.spoutLength, 0, this.connectorHeight];
-                addIntersectObject(
+                this.spoutLengthHandler = addIntersectObject(
                         spoutTip,
                         this,
                         "setSpoutLength",
                         {origin: [outerRadius, 0, this.connectorHeight],
-                            direction: [1000000, 0, 0]});
+                            direction: [10, 0, 0]});
 
                 var spoutConPt = [outerRadius, 0, this.connectorHeight - this.spoutHeight];
-                addIntersectObject(
+                this.spoutHeightHandler = addIntersectObject(
                         spoutConPt,
                         this,
                         "setSpoutHeight",
-                        {origin: [outerRadius, 0, 0],
-                            direction: [0, 0, this.connectorHeight]});
+                        {origin: [outerRadius, 0, this.margin],
+                            direction: [0, 0, this.connectorHeight - this.margin]});
+                        
+                var conHeightPt = [0, 0, this.connectorHeight];
+                this.conHeightHandler = addIntersectObject(
+                        conHeightPt,
+                        this,
+                        "setConnectorHeight",
+                        {origin: [0, 0, this.rimHeight + this.tensionerHeight],
+                            direction: [0, 0, 20]});
+                        
+                var outerHandleRadius = (this.handleDiameter / 2) + this.margin + this.offset;
+                var conHandlePt = [-(outerRadius + outerHandleRadius + this.handleLength), 0, this.connectorHeight];
+                this.handleHandler = addIntersectObject(
+                        conHandlePt,
+                        this,
+                        "setHandleLength",
+                        {origin: [-(outerRadius + this.tensionerHeight + outerHandleRadius), 0, this.connectorHeight],
+                            direction: [-20, 0, 0]});
+                        
+                        
+                        
 
                 var d2 = Date.now();
                 console.log("built complete in ", (d2 - d1), " ms ");
@@ -165,10 +205,6 @@
                 this.vesselTopAngleStart = Math.asin((y + this.offset) / (outerRadiusV + this.offset));
             };
 
-
-            Jug.prototype.calcInnerSpout = function () {
-
-            };
 
             Jug.prototype.BuildVesselTensioner = function () {
 
@@ -359,11 +395,10 @@
                 meshesFront.push(screwHoleMesh);
 
                 //merge meshes and mirror them to finish tensioner
-                var bottomTensioner = this.buildMeshComponent(meshesFront, meshesBack);
-                scene.add(bottomTensioner);
+                this.bottomTensioner = this.buildMeshComponent(meshesFront, meshesBack);
 
                 var d2 = Date.now();
-                console.log("built tensioner in ", (d2 - d1), " ms ");
+                //console.log("built tensioner in ", (d2 - d1), " ms ");
             };
 
             Jug.prototype.BuildSpout = function () {
@@ -485,8 +520,6 @@
                 outerSpoutSide._data.controlPoints[2][0] = pA;
                 outerSpoutSide._data.controlPoints[2][1] = pB;
 
-                console.log(outerSpoutSide);
-
                 //points to represent a new bottom curve of the jug
                 outerSpoutConIntArc._data.controlPoints.forEach(function (obj) {
                     obj[2] = 0;
@@ -516,23 +549,25 @@
 
                 //now to create the offset to close the upper layer
 
-                //easiest way to do this is to offset the spout and work from there
-                //need to do the entire ede intersection anyway.
-
-                //get perpendicular vector by rotating vecB's X and Y (is in xy plane anyway)
-                //neem hier nu de offset, maar zou ook de
-                //offset plus de margin plus de rimwidth kunnen nemen
-                var perpVec = [vecB[1], vecB[0], 0];
-                perpVec = verb.core.Vec.normalized(perpVec);
-                perpVec = verb.core.Vec.mul(offset, perpVec);
+                //translation is dependent on a hourglass function
+                //  |\
+                //  | \         lengthA   widthA
+                //  |  \        ------- = ------
+                //  |__ \_      lengthB   widthB
+                //       \|
+                
+                var lengthB = outerSpoutCrv.length();
+                var widthA = this.offset;
+                var widthB = intCircLinePt[1];
+                
+                var lengthA = lengthB * (widthA / widthB);
 
                 //translate the points 
-                var offsetOuterIntLineEnd = verb.core.Vec.add(outerIntLineEnd, perpVec);
-                var offsetOuterSpoutTipPt = verb.core.Vec.add(outerSpoutTipPt, perpVec);
+                var innerSpoutTipPt = verb.core.Vec.add(outerSpoutTipPt, [-lengthA, 0, 0]);
+                var offsetOuterIntLineEnd = verb.core.Vec.add(outerIntLineEnd, [-lengthA, 0, 0]);
 
-
-                var outerTopInt = circleLineIntersect(offsetOuterSpoutTipPt, offsetOuterIntLineEnd
-                        , {center: [0, 0], radius: innerRadius})
+                var outerTopInt = circleLineIntersect(innerSpoutTipPt, offsetOuterIntLineEnd
+                        , {center: [0, 0], radius: innerRadius});
                 var innerTopIntCircLinePt = outerTopInt[outerTopInt.length - 1];
                 innerTopIntCircLinePt[2] = connectorHeight;
 
@@ -550,10 +585,6 @@
                 meshesBack.push(new THREE.Mesh(innerClosingExtrGeom));
 
                 //the create the line that represents the innerSpoutEdge
-                var tempLine = new verb.geom.Line([0, 0, connectorHeight], outerSpoutTipPt);
-                var offsetOuterIntLine = new verb.geom.Line(offsetOuterIntLineEnd, offsetOuterSpoutTipPt);
-
-                var innerSpoutTipPt = verb.geom.Intersect.curves(tempLine, offsetOuterIntLine, 1e-6)[0].point0;
                 var innerSpoutCrv = new verb.geom.Line(innerSpoutTipPt, innerTopIntCircLinePt);
 
                 //now I can close the topLayer
@@ -598,7 +629,7 @@
 
                     innerSpoutRidge = new verb.geom.Line(innerSpoutConPt, innerSpoutTipPt);
 
-                    var transVec = verb.core.Vec.sub(offsetOuterIntLineEnd, offsetOuterSpoutTipPt);
+                    var transVec = verb.core.Vec.sub(outerIntLineEnd, outerSpoutTipPt);
                     var transPt = verb.core.Vec.add(innerSpoutConPt, transVec);
 
                     var innerBottomIntCircLinePt = circleLineIntersect(innerSpoutConPt, transPt
@@ -695,7 +726,7 @@
                 this.spout = this.buildMeshComponent(meshesFront, meshesBack);
 
                 var d2 = Date.now();
-                console.log("built spout in ", (d2 - d1), " ms ");
+                //console.log("built spout in ", (d2 - d1), " ms ");
             };
 
             Jug.prototype.BuildInnerVessel = function () {
@@ -808,12 +839,11 @@
                 meshesFront.push(topLayerMesh);
 
                 //merge meshes and mirror them to finish tensioner
-                var innerVesselMesh = this.buildMeshComponent(meshesFront, meshesBack);
-                scene.add(innerVesselMesh);
+                this.innerVesselMesh = this.buildMeshComponent(meshesFront, meshesBack);
 
                 //time the process
                 var d2 = Date.now();
-                console.log("built innerhalf in ", (d2 - d1), " ms ");
+                //console.log("built innerhalf in ", (d2 - d1), " ms ");
             };
 
             Jug.prototype.BuildVesselHandle = function () {
@@ -885,12 +915,11 @@
                 meshesBack.push(outerHalfHandleMesh);
 
                 //merge meshes and mirror them to finish tensioner
-                var vesselToHandleMesh = this.buildMeshComponent(meshesFront, meshesBack);
-                scene.add(vesselToHandleMesh);
+                this.vesselToHandleMesh = this.buildMeshComponent(meshesFront, meshesBack);
 
                 //time the process
                 var d2 = Date.now();
-                console.log("built vesselHalf in ", (d2 - d1), " ms ");
+                //console.log("built vesselHalf in ", (d2 - d1), " ms ");
             };
 
             Jug.prototype.BuildHandleTensioner = function () {
@@ -1046,13 +1075,11 @@
 
                 meshesBack.push(screwHoleMesh);
 
-                var handleTensionerMesh = this.buildMeshComponent(meshesFront, meshesBack);
-
-                scene.add(handleTensionerMesh);
+                this.handleTensionerMesh = this.buildMeshComponent(meshesFront, meshesBack);
 
                 //time the process
                 var d2 = Date.now();
-                console.log("built handleTensioner in ", (d2 - d1), " ms ");
+                //console.log("built handleTensioner in ", (d2 - d1), " ms ");
             };
 
             Jug.prototype.BuildHandleBridge = function () {
@@ -1115,12 +1142,11 @@
 
                 meshesFront.push(midhandleMesh);
 
-                var handleMesh = this.buildMeshComponent(meshesFront, meshesBack);
-                scene.add(handleMesh);
+                this.handleMesh = this.buildMeshComponent(meshesFront, meshesBack);
 
                 //time the process
                 var d2 = Date.now();
-                console.log("built handleBridge in ", (d2 - d1), " ms ");
+                //console.log("built handleBridge in ", (d2 - d1), " ms ");
             };
 
             Jug.prototype.Error = function (e) {
@@ -1142,6 +1168,73 @@
                 this.BuildSpout();
                 scene.add(this.spout);
             };
+            
+
+            Jug.prototype.setConnectorHeight = function (point) {
+                
+                var translateZ = point[2] - this.connectorHeight;
+                
+                this.connectorHeight = point[2];
+                
+                if(this.spoutHeight > this.connectorHeight)
+                    this.spoutHeight = this.connectorHeight - this.margin;
+
+                removeFromScene(this.spout);
+                removeFromScene(this.innerVesselMesh);
+                removeFromScene(this.vesselToHandleMesh);
+                
+                this.BuildSpout();
+                this.BuildInnerVessel();
+                this.BuildVesselHandle();
+                
+                scene.add(this.spout);
+                scene.add(this.innerVesselMesh);
+                scene.add(this.vesselToHandleMesh);
+                
+                this.handleTensionerMesh.translateZ(translateZ);
+                this.handleMesh.translateZ(translateZ);
+                handle.translateZ(translateZ);
+                
+                var outerRadius = (this.vesselDiameter / 2) + this.margin + this.offset;
+                
+                this.spoutLengthHandler.updateHandler(
+                    [outerRadius + this.spoutLength, 0, this.connectorHeight],
+                    {origin: [outerRadius, 0, this.connectorHeight],
+                        direction: [10, 0, 0]}
+                );
+                this.spoutHeightHandler.updateHandler(
+                    [outerRadius, 0, this.connectorHeight - this.spoutHeight], 
+                    {origin: [outerRadius, 0, this.margin],
+                        direction: [0, 0, this.connectorHeight - this.margin]}
+                );
+                
+                var outerHandleRadius = (this.handleDiameter / 2) + this.margin + this.offset;
+                
+                this.handleHandler.updateHandler(
+                    [-(outerRadius + outerHandleRadius + this.handleLength), 0, this.connectorHeight],
+                    {origin: [-(outerRadius + this.tensionerHeight + outerHandleRadius), 0, this.connectorHeight],
+                        direction: [-20, 0, 0]}
+                );
+
+            };
+            
+            Jug.prototype.setHandleLength = function(point){
+                
+                var outerRadius = (this.vesselDiameter / 2) + this.margin + this.offset;
+                var outerHandleRadius = (this.handleDiameter / 2) + this.margin + this.offset;
+                
+                var translateX = - point[0] - (outerRadius + outerHandleRadius + this.handleLength);
+                
+                this.handleLength = - point[0] - (outerRadius + outerHandleRadius);
+
+                removeFromScene(this.handleMesh);
+                this.BuildHandleBridge();
+                scene.add(this.handleMesh);
+                
+                this.handleTensionerMesh.translateX(-translateX);
+                handle.translateX(-translateX);
+            };
+            
 
             Jug.prototype.buildMeshComponent = function (meshesFront, meshesBack) {
                 //have to add a part for meshes that do not need to be mirrored
@@ -1320,6 +1413,68 @@
             };
 
             var jug = new Jug();
+
+            var loader = new THREE.STLLoader();
+
+            var glassMaterial = new THREE.MeshPhongMaterial({
+                color: 0x8b9dc3,
+                specular: 0x111111,
+                shininess: 200,
+                transparent: true,
+                opacity: 0.1,
+                shading: THREE.SmoothShading,
+                depthWrite: false
+            });
+            
+            var bronzeMaterial = new THREE.MeshPhongMaterial( {
+                color: 0x150505,
+                specular:0xee6600,
+                shininess:10,
+                //envMap: textureCube,
+                combine: THREE.MixOperation,
+                reflectivity: 0.25
+            } );
+            
+            var goldMaterial = new THREE.MeshPhongMaterial( {
+                color: 0xaa9944,
+                specular:0xbbaa99,
+                shininess:50,
+                //envMap: textureCube,
+                combine: THREE.MultiplyOperation
+            } );
+				
+				
+
+            loader.load('vases/SINNERLIG_POT.stl', function (geometry) {
+                var mesh = new THREE.Mesh(geometry, glassMaterial);
+
+                mesh.position.set(0, 0, -18.6);
+
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+
+                scene.add(mesh);
+
+            });
+            
+            var handle;
+            
+            loader.load('handles/testHandle.stl', function (geometry) {
+                handle = new THREE.Mesh(geometry, goldMaterial);
+                
+                var locationX = (jug.vesselDiameter/2) + (jug.offset * 2) +
+                        (jug.margin * 2) + jug.handleLength + (jug.handleDiameter / 2);
+                
+                var locationZ = 15 - jug.connectorHeight;
+
+                handle.position.set(-locationX, 0, -locationZ);
+
+                handle.castShadow = true;
+                handle.receiveShadow = true;
+
+                scene.add(handle);
+
+            });
           
             threeRender();
 
