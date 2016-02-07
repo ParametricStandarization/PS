@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-    
+
     <head>
         <script src="../lib/verb.js"></script>
         <script src="../lib/three.min.js"></script>
@@ -13,40 +13,123 @@
             body { 
                 margin: 0; 
                 background: white;
+
+                text-align: center;
+            }
+
+            .centerDiv {
+
+                position: absolute;
+                left: 50%;
+                top: 5%;
+
+                text-align: left;
+            }
+
+            .titleContainer {
+                font-family:"Tahoma";
+                font-weight: bold;
+
+                position: relative;
+                left: -50%;
+
+                z-index: -1;
+            }
+
+            #objectContainer {
+            }
+
+            .mainTitle {
+                font-size: 1000%;
+            }
+
+            .product {
+                font-size: 300%;
+            }
+
+            .part {
+                font-size: 150%;
+
+                text-align: left;
             }
         </style>
     </head>
     <body>
 
+        <div id="objectContainer">
+        </div>
+
+        <div class="centerDiv">
+            <div class="titleContainer">
+                <span class="mainTitle">PS</span><span class="mainTitle">/</span><span class="product">Cupboard</span><br>
+                <span class="part">LEG</span><span class="part"> + </span><span class="part">WALL</span><span class="part"> + </span><span class="part">SHELF</span>
+            </div>
+        </div>
+
         <script>
-            
-            
+
+
             threeSetup();
-            
-            Leg = function(diameter, height){
+
+            Leg = function (diameter, height) {
                 this.diameter = diameter;
                 this.height = height;
                 this.mesh;
                 
+                this.materialFront = new THREE.MeshLambertMaterial({
+                    color: 0xffff99
+                    , side: THREE.FrontSide
+                    , shading: THREE.SmoothShading
+                });
+
+                this.materialBack = new THREE.MeshLambertMaterial({
+                    color: 0xffff99
+                    , side: THREE.BackSide
+                    , shading: THREE.SmoothShading
+                });
+
+                this.build();
             };
-            
-            Leg.prototype.build = function (){
+
+            Leg.prototype.build = function () {
                 var radius = this.diameter / 2;
                 var height = this.height;
-                
-                var center = [0,0,0];
-                var xAxis = [1,0,0];
-                var zAxis = [0,0,1];
-                
-                var base = new verb.geom.CylindricalSurface(
+
+                var center = [0, 0, 0];
+                var xAxis = [1, 0, 0];
+                var yAxis = [0, 1, 0];
+                var zAxis = [0, 0, 1];
+
+                //create the bottom cap circle of the cylinder
+                var circle = new verb.geom.Circle(
+                        center, xAxis, yAxis, radius);
+
+                var circleGeom = OpenPlus.PlanarSrf([circle]);
+                var bottomCircleMesh = new THREE.Mesh(circleGeom);
+
+                //clone and translate circle to create top cap
+                var topCircleMesh = bottomCircleMesh.clone();
+                topCircleMesh.translateZ(height);
+
+                //cylinderMesh, is a open cylinder shape
+                var cylinderNurb = new verb.geom.CylindricalSurface(
                         zAxis, xAxis, center, height, radius);
+
+                var cylinderMesh = new THREE.Mesh(cylinderNurb.toThreeGeometry());
                 
-                var baseGeom = base.toThreeGeometry();
+                //add meshes to array to combine into one mesh
+                var frontMeshes = [topCircleMesh];
+                var backMeshes = [bottomCircleMesh, cylinderMesh];
                 
-                this.mesh = new THREE.Mesh(baseGeom);
+                console.log(frontMeshes);
+                console.log(backMeshes);
                 
+                //combine the cylinder and the bottom and top meshes
+                this.mesh = OpenPlus.combineMesh(frontMeshes, backMeshes,
+                    this.materialFront, this.materialBack);
+
             };
-            
+
             CupBoard = function () {
                 //overal variables
                 this.height;
@@ -69,14 +152,11 @@
             };
 
             CupBoard.prototype.Build = function () {
-                var leg = new Leg(2, 20);
-                
-                scene.add(leg);
-                
+                var leg = new Leg(20, 200);
+
+                scene.add(leg.mesh);
+
             };
-
-            var cupboard = new CupBoard();
-
 
             OpenPlus = {
                 EqualPoints: function (pointA, pointB) {
@@ -88,7 +168,6 @@
                         return false;
                     return true;
                 },
-                
                 JoinCurves: function (tempCurves) {
                     var curves = tempCurves.slice(0);
 
@@ -156,8 +235,7 @@
                                 connectedCurves.push(new CurveLine(curves.splice(0, 1)[0]));
 
                         }
-                    } else
-                        return null;
+                    }
 
                     var returnArray = [];
                     for (var i = 0; i < connectedCurves.length; i++) {
@@ -208,9 +286,80 @@
                     var geometry = new THREE.ShapeGeometry(shape, {curveSegments: 100});
 
                     return geometry;
+                },
+                
+                //combine meshes into a single mesh
+                combineMesh: function (meshesFront, meshesBack,
+                    materialFront, materialBack) {
+
+                    var mergedGeom = new THREE.Geometry();
+
+                    for (var i = 0; i < meshesFront.length; i++) {
+                        var tempMesh = meshesFront[i];
+
+                        tempMesh.updateMatrix();
+                        mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 0);
+                    }
+
+                    for (var i = 0; i < meshesBack.length; i++) {
+                        var tempMesh = meshesBack[i];
+
+                        tempMesh.updateMatrix();
+                        mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 1);
+                    }
+
+                    var materials = [materialFront, materialBack];
+                    var resultMesh = new THREE.Mesh(mergedGeom, new THREE.MeshFaceMaterial(materials));
+
+                    return resultMesh;
+                },
+                
+                //function to mirror and combine meshes and make them into a complete mesh
+                mirrorCombineMesh: function (meshesFront, meshesBack,
+                    materialFront, materialBack) {
+                        
+                    var mS = (new THREE.Matrix4()).identity();
+                    mS.elements[5] = -1;
+
+                    var mergedGeom = new THREE.Geometry();
+
+                    for (var i = 0; i < meshesFront.length; i++) {
+                        var tempMesh = meshesFront[i];
+
+                        tempMesh.updateMatrix();
+                        mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 0);
+
+                        var tempMeshClone = tempMesh.clone();
+
+                        tempMeshClone.applyMatrix(mS);
+                        tempMeshClone.updateMatrix();
+
+                        mergedGeom.merge(tempMeshClone.geometry, tempMeshClone.matrix, 1);
+                    }
+
+                    for (var i = 0; i < meshesBack.length; i++) {
+                        var tempMesh = meshesBack[i];
+
+                        tempMesh.updateMatrix();
+                        mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 1);
+
+                        var tempMeshClone = tempMesh.clone();
+
+                        tempMeshClone.applyMatrix(mS);
+                        tempMeshClone.updateMatrix();
+
+                        mergedGeom.merge(tempMeshClone.geometry, tempMeshClone.matrix, 0);
+                    }
+
+                    var materials = [materialFront, materialBack];
+                    var resultMesh = new THREE.Mesh(mergedGeom, new THREE.MeshFaceMaterial(materials));
+
+                    return resultMesh;
                 }
             };
-            
+
+            var cupboard = new CupBoard();
+
             threeRender();
 
 
