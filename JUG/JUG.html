@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <script src="../lib/OpenPlus.js"></script>
         <script src="../lib/verb.js"></script>
         <script src="../lib/three.min.js"></script>
         <script src="../lib/verbToThreeConversion.js"></script>
@@ -395,7 +396,8 @@
                 meshesFront.push(screwHoleMesh);
 
                 //merge meshes and mirror them to finish tensioner
-                this.bottomTensioner = this.buildMeshComponent(meshesFront, meshesBack);
+                this.bottomTensioner = OpenPlus.mirrorCombineMesh(
+                        meshesFront, meshesBack, this.materialFront, this.materialBack);
 
                 var d2 = Date.now();
                 //console.log("built tensioner in ", (d2 - d1), " ms ");
@@ -415,47 +417,6 @@
                 var spoutHeight = this.spoutHeight;
                 var spoutLength = this.spoutLength;
 
-                var circleLineIntersect = function (pointA, pointB, circle) {
-                    //find out a and b in the linefunction mx + c = y
-                    var p = circle.center[0];
-                    var q = circle.center[1];
-                    var r = circle.radius;
-
-                    //slope m
-                    var m = (pointA[1] - pointB[1]) / (pointA[0] - pointB[0]);
-                    var c = -(m * pointA[0]) + pointA[1];
-
-                    //fill out the Ax^2 + Bx + C = 0 function
-                    var A = (m * m) + 1;
-                    var B = 2 * ((m * c) - (m * q) - p);
-                    var C = ((q * q) - (r * r) + (p * p) - (2 * c * q) + (c * c));
-
-                    //get discriminator
-                    var disc = (B * B) - 4 * A * C;
-
-                    if (disc < 0)
-                        return null;
-
-                    var x = ((-B + Math.sqrt(disc)) / (2 * A));
-                    var y = m * x + c;
-
-                    if (disc === 0)
-                        return [[x, y]];
-                    else {
-                        var x2 = ((-B - Math.sqrt(disc)) / (2 * A));
-                        var y2 = m * x2 + c;
-
-                        if (x < x2)
-                            return [[x, y], [x2, y2]];
-                        else
-                            return  [[x2, y2], [x, y]];
-                    }
-                };
-
-                var anglePtOnCircle = function (point, radius) {
-                    return Math.acos(point[1] / radius);
-                };
-
                 //tip of the spout to create teh spoutSide
                 var outerIntLineEnd = [0, outerRadius, connectorHeight];
                 var outerSpoutTipPt = [outerRadius + spoutLength, 0, connectorHeight];
@@ -465,14 +426,14 @@
                 var xAxis = [1, 0, 0];
                 var yAxis = [0, 1, 0];
 
-                var intCircLinePt = circleLineIntersect(outerSpoutTipPt, outerIntLineEnd
+                var intCircLinePt = OpenPlus.CircleLineIntersect(outerSpoutTipPt, outerIntLineEnd
                         , {center: [0, 0], radius: outerRadius})[1];
                 intCircLinePt[2] = connectorHeight;
 
-                var angle = anglePtOnCircle(intCircLinePt, outerRadius);
+                var angle = OpenPlus.AnglePtOnCircle(intCircLinePt, outerRadius);
 
                 var outerSpoutConIntArc = new verb.geom.Arc(
-                        center, xAxis, yAxis, outerRadius, 0, (Math.PI / 2) - angle);
+                        center, xAxis, yAxis, outerRadius, 0, angle);
 
                 var outerSpoutCrv = new verb.geom.Line(outerSpoutTipPt, intCircLinePt);
 
@@ -538,7 +499,7 @@
 
                 //extract a closing arc to create a closing surface
                 var outerClosingArc = new verb.geom.Arc(
-                        center, xAxis, yAxis, outerRadius, (Math.PI / 2) - angle, Math.PI * 0.5);
+                        center, xAxis, yAxis, outerRadius, angle, Math.PI * 0.5);
 
                 var outerExtrVec = [0, 0, -connectorHeight];
 
@@ -566,16 +527,16 @@
                 var innerSpoutTipPt = verb.core.Vec.add(outerSpoutTipPt, [-lengthA, 0, 0]);
                 var offsetOuterIntLineEnd = verb.core.Vec.add(outerIntLineEnd, [-lengthA, 0, 0]);
 
-                var outerTopInt = circleLineIntersect(innerSpoutTipPt, offsetOuterIntLineEnd
+                var outerTopInt = OpenPlus.CircleLineIntersect(innerSpoutTipPt, offsetOuterIntLineEnd
                         , {center: [0, 0], radius: innerRadius});
                 var innerTopIntCircLinePt = outerTopInt[outerTopInt.length - 1];
                 innerTopIntCircLinePt[2] = connectorHeight;
 
-                var topAngle = anglePtOnCircle(innerTopIntCircLinePt, innerRadius);
+                var topAngle = OpenPlus.AnglePtOnCircle(innerTopIntCircLinePt, innerRadius);
 
                 //first create the closingArc
                 var innerClosingArc = new verb.geom.Arc(
-                        center, xAxis, yAxis, innerRadius, (Math.PI / 2) - topAngle, Math.PI * 0.5);
+                        center, xAxis, yAxis, innerRadius, topAngle, Math.PI * 0.5);
 
                 var innerExtrVec = [0, 0, -(connectorHeight - innerConnectorHeight)];
 
@@ -614,7 +575,7 @@
 
                 if (aboveConnectorHeight) {
                     innerSpoutConIntArc = new verb.geom.Arc(
-                            center, xAxis, yAxis, innerRadius, 0, (Math.PI / 2) - topAngle);
+                            center, xAxis, yAxis, innerRadius, 0, topAngle);
 
                     var innerSpoutConPt = [innerRadius, 0, connectorHeight - innerSpoutHeight];
 
@@ -632,21 +593,21 @@
                     var transVec = verb.core.Vec.sub(outerIntLineEnd, outerSpoutTipPt);
                     var transPt = verb.core.Vec.add(innerSpoutConPt, transVec);
 
-                    var innerBottomIntCircLinePt = circleLineIntersect(innerSpoutConPt, transPt
+                    var innerBottomIntCircLinePt = OpenPlus.CircleLineIntersect(innerSpoutConPt, transPt
                             , {center: [0, 0], radius: innerRadius})[1];
                     innerBottomIntCircLinePt[2] = connectorHeight;
 
-                    var bottomAngle = anglePtOnCircle(innerBottomIntCircLinePt, innerRadius);
+                    var bottomAngle = OpenPlus.AnglePtOnCircle(innerBottomIntCircLinePt, innerRadius);
 
                     innerSpoutConIntArc = new verb.geom.Arc(center, xAxis, yAxis,
-                            innerRadius, (Math.PI / 2) - bottomAngle, (Math.PI / 2) - topAngle);
+                            innerRadius, bottomAngle, topAngle);
 
                     //make the last planarCrv here
 
                     center = [0, 0, innerConnectorHeight];
 
                     var innerSpoutClosingArc = new verb.geom.Arc(center, xAxis, yAxis,
-                            innerRadius, 0, (Math.PI / 2) - bottomAngle);
+                            innerRadius, 0, bottomAngle);
 
                     var spoutPlateCrv = new verb.geom.Line(
                             innerSpoutClosingArc.point(0), innerSpoutRidge.point(0));
@@ -723,7 +684,8 @@
                 meshesBack.push(innerCylEdgeMesh);
 
                 //merge meshes and mirror them to finish tensioner
-                this.spout = this.buildMeshComponent(meshesFront, meshesBack);
+                this.spout = OpenPlus.mirrorCombineMesh(
+                        meshesFront, meshesBack, this.materialFront, this.materialBack);
 
                 var d2 = Date.now();
                 //console.log("built spout in ", (d2 - d1), " ms ");
@@ -839,7 +801,8 @@
                 meshesFront.push(topLayerMesh);
 
                 //merge meshes and mirror them to finish tensioner
-                this.innerVesselMesh = this.buildMeshComponent(meshesFront, meshesBack);
+                this.innerVesselMesh = OpenPlus.mirrorCombineMesh(
+                        meshesFront, meshesBack, this.materialFront, this.materialBack);
 
                 //time the process
                 var d2 = Date.now();
@@ -915,7 +878,8 @@
                 meshesBack.push(outerHalfHandleMesh);
 
                 //merge meshes and mirror them to finish tensioner
-                this.vesselToHandleMesh = this.buildMeshComponent(meshesFront, meshesBack);
+                this.vesselToHandleMesh = OpenPlus.mirrorCombineMesh(
+                        meshesFront, meshesBack, this.materialFront, this.materialBack);
 
                 //time the process
                 var d2 = Date.now();
@@ -1075,7 +1039,8 @@
 
                 meshesBack.push(screwHoleMesh);
 
-                this.handleTensionerMesh = this.buildMeshComponent(meshesFront, meshesBack);
+                this.handleTensionerMesh = OpenPlus.mirrorCombineMesh(
+                        meshesFront, meshesBack, this.materialFront, this.materialBack);
 
                 //time the process
                 var d2 = Date.now();
@@ -1142,7 +1107,8 @@
 
                 meshesFront.push(midhandleMesh);
 
-                this.handleMesh = this.buildMeshComponent(meshesFront, meshesBack);
+                this.handleMesh = OpenPlus.mirrorCombineMesh(
+                        meshesFront, meshesBack, this.materialFront, this.materialBack);
 
                 //time the process
                 var d2 = Date.now();
@@ -1233,182 +1199,6 @@
                 
                 this.handleTensionerMesh.translateX(-translateX);
                 handle.translateX(-translateX);
-            };
-            
-
-            Jug.prototype.buildMeshComponent = function (meshesFront, meshesBack) {
-                //have to add a part for meshes that do not need to be mirrored
-
-                var mS = (new THREE.Matrix4()).identity();
-                mS.elements[5] = -1;
-
-                var mergedGeom = new THREE.Geometry();
-
-                for (var i = 0; i < meshesFront.length; i++) {
-                    var tempMesh = meshesFront[i];
-
-                    tempMesh.updateMatrix();
-                    mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 0);
-
-                    var tempMeshClone = tempMesh.clone();
-
-                    tempMeshClone.applyMatrix(mS);
-                    tempMeshClone.updateMatrix();
-
-                    mergedGeom.merge(tempMeshClone.geometry, tempMeshClone.matrix, 1);
-                }
-
-                for (var i = 0; i < meshesBack.length; i++) {
-                    var tempMesh = meshesBack[i];
-
-                    tempMesh.updateMatrix();
-                    mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 1);
-
-                    var tempMeshClone = tempMesh.clone();
-
-                    tempMeshClone.applyMatrix(mS);
-                    tempMeshClone.updateMatrix();
-
-                    mergedGeom.merge(tempMeshClone.geometry, tempMeshClone.matrix, 0);
-                }
-
-                var materials = [this.materialFront, this.materialBack];
-                var resultMesh = new THREE.Mesh(mergedGeom, new THREE.MeshFaceMaterial(materials));
-
-                return resultMesh;
-            };
-
-
-            OpenPlus = {
-                EqualPoints: function (pointA, pointB) {
-                    if (Math.abs(pointA[0] - pointB[0]) > 1e-6)
-                        return false;
-                    if (Math.abs(pointA[1] - pointB[1]) > 1e-6)
-                        return false;
-                    if (Math.abs(pointA[2] - pointB[2]) > 1e-6)
-                        return false;
-                    return true;
-                },
-                JoinCurves: function (tempCurves) {
-
-                    var curves = tempCurves.slice(0);
-
-                    var CurveLine = function (curve) {
-                        this.start = curve.point(0);
-                        this.end = curve.point(1);
-                        this.curves = [curve];
-                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
-                    };
-
-                    CurveLine.prototype.push = function (newCurve) {
-                        this.end = newCurve.point(1);
-                        this.curves.push(newCurve);
-                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
-                    };
-
-                    CurveLine.prototype.unshift = function (newCurve) {
-                        this.start = newCurve.point(0);
-                        this.curves.unshift(newCurve);
-                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
-                    };
-
-                    var curveLine = new CurveLine(curves.splice(0, 1)[0]);
-                    var connectedCurves = [curveLine];
-
-                    //sure this algorithm is horrible, but should work for now
-                    if (curves.length !== 0) {
-
-                        for (var i = 0; i < connectedCurves.length; i++) {
-
-                            var tempLine = connectedCurves[i];
-
-                            if (!tempLine.closed) {
-
-                                for (var j = 0; j < curves.length; j++) {
-
-                                    var curve = curves[j];
-
-                                    var curveStart = curve.point(0);
-                                    var curveEnd = curve.point(1);
-
-                                    if (OpenPlus.EqualPoints(curveStart, tempLine.end)) {
-                                        tempLine.push(curve);
-                                    } else if (OpenPlus.EqualPoints(curveEnd, tempLine.start)) {
-                                        tempLine.unshift(curve);
-                                    } else if (OpenPlus.EqualPoints(curveStart, tempLine.start)) {
-                                        tempLine.unshift(curve.reverse());
-                                    } else if (OpenPlus.EqualPoints(curveEnd, tempLine.end)) {
-                                        tempLine.push(curve.reverse());
-                                    } else {
-                                        continue;
-                                    }
-
-                                    curves.splice(j, 1);
-                                    j = -1;
-
-                                    if (tempLine.closed)
-                                        break;
-                                }
-                            }
-
-                            if (curves.length === 0)
-                                break;
-                            else
-                                connectedCurves.push(new CurveLine(curves.splice(0, 1)[0]));
-
-                        }
-                    }
-
-                    var returnArray = [];
-                    for (var i = 0; i < connectedCurves.length; i++) {
-                        returnArray[i] = connectedCurves[i].curves;
-                    }
-
-                    return returnArray;
-                },
-                PlanarSrf: function (curves, willFlip) {
-
-                    var flipped = willFlip || false;
-
-                    //first need to check if all are curves
-
-                    //create joined lines, should check if these are inside each other or not
-                    //this will define if an object with or without hole will be made
-                    var curveLines = OpenPlus.JoinCurves(curves);
-
-                    //now I need to check if the curves are planar
-                    //http://verbnurbs.com/docs/core/Trig/#ispointinplane
-                    //http://threejs.org/docs/#Reference/Math/Plane
-
-                    //then check if curves intersect or are inside each other
-                    //those that are inside a different path need to create their own geometry
-
-                    var path = new THREE.Path;
-                    path.autoClose = false;
-
-                    for (var i = 0; i < curveLines.length; i++) {
-                        var tempCurves = curveLines[i];
-
-                        var startPoint = tempCurves[0].point(0);
-                        var vertices = [new THREE.Vector2(startPoint[0], startPoint[1])];
-
-                        for (var j = 0; j < tempCurves.length; j++) {
-                            var curve = tempCurves[j].toThreeGeometry();
-
-                            var verticeClone = curve.vertices.slice(1);
-
-                            vertices = vertices.concat(verticeClone);
-                        }
-
-                        path.fromPoints(vertices);
-                    }
-
-                    var shape = path.toShapes(flipped, false)[0];
-
-                    var geometry = new THREE.ShapeGeometry(shape, {curveSegments: 100});
-
-                    return geometry;
-                }
             };
 
             var jug = new Jug();

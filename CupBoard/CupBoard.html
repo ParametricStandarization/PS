@@ -2,6 +2,7 @@
 <html>
 
     <head>
+        <script src="../lib/OpenPlus.js"></script>
         <script src="../lib/verb.js"></script>
         <script src="../lib/three.min.js"></script>
         <script src="../lib/verbToThreeConversion.js"></script>
@@ -70,6 +71,14 @@
 
 
             threeSetup();
+            
+            ThinNut = function (mSize) {
+                this.m = mSize;
+                
+                this.height = 0.5 * mSize;
+                this.width = 1.8 * mSize;
+                this.diameter = 2 * mSize;
+            };
 
             Leg = function (diameter, height) {
                 this.diameter = diameter;
@@ -121,13 +130,173 @@
                 var frontMeshes = [topCircleMesh];
                 var backMeshes = [bottomCircleMesh, cylinderMesh];
                 
-                console.log(frontMeshes);
-                console.log(backMeshes);
-                
                 //combine the cylinder and the bottom and top meshes
                 this.mesh = OpenPlus.combineMesh(frontMeshes, backMeshes,
                     this.materialFront, this.materialBack);
 
+            };
+
+            ConnectorLegWallShelf = function (leg, wallRib, nut) {
+                //margin and offset
+                this.margin = 0.3;
+                this.offset = 2;
+                
+                //depended on connected objects
+                this.radius = (leg.diameter) / 2 + this.margin;
+                
+                this.x = wallRib.x + (this.margin * 2);
+                this.y = wallRib.y + (this.margin * 2);
+                
+                //dependend on the diameter of the nut
+                this.nutM = nut.m;
+                this.nutHeight = nut.height + this.margin;
+                this.nutWidth = nut.width;
+                this.nutRadius = (nut.diameter / 2) + this.margin;
+                
+                this.materialFront = new THREE.MeshLambertMaterial({
+                    color: 0x99ff66
+                    , side: THREE.FrontSide
+                    , shading: THREE.SmoothShading
+                });
+
+                this.materialBack = new THREE.MeshLambertMaterial({
+                    color: 0x99ff66
+                    , side: THREE.BackSide
+                    , shading: THREE.SmoothShading
+                });
+                
+                this.mesh;
+                
+                this.build();
+            };
+            
+            ConnectorLegWallShelf.prototype.build = function (){
+                var center = [0,0,0];
+                var xAxis = [1,0,0];
+                var yAxis = [0,1,0];
+                var zAxis = [0,0,1];
+                
+                var pointA = [0, this.nutRadius, 0];
+                var pointB = [this.radius + this.nutHeight, this.nutRadius, 0];
+                var circle = {center: center, radius: this.radius};
+                
+                var intPoint =
+                    OpenPlus.CircleLineIntersect(pointA, pointB, circle)[1];
+                intPoint[2] = 0;
+                
+                var angle = OpenPlus.AnglePtOnCircle(intPoint, this.radius);
+                
+                var innerArc = new verb.geom.Arc(center, xAxis, yAxis,
+                    this.radius, angle, (Math.PI * 2) - angle);
+                
+                var nutSlotLine = new verb.geom.Line(intPoint, pointB);
+                
+                var matMirror = [[1,0,0], [0,-1,0], [0,0,1]];
+                var nutSlotLineMir = nutSlotLine.transform(matMirror);;
+                
+                var closingNutLine = new verb.geom.Line(
+                        nutSlotLine.point(1), nutSlotLineMir.point(1));
+                
+                //create the rectangles for wallholders
+                center = [1,-1,0];
+                center = verb.core.Vec.normalized(center);
+                center = verb.core.Vec.mul(
+                        (this.radius + this.offset + (this.x/2)), center);
+                xAxis = [1,-1,0];
+                yAxis = [1,1,0];
+                
+                //var innerRectangle
+                var rectA = OpenPlus.Rectangle( center,
+                    xAxis, yAxis, this.x, this.y);
+                
+                //mirror of innerRectangle
+                var quat = OpenPlus.QatFromaxisangle(zAxis, Math.PI/2);
+                var matRotate = OpenPlus.QuatToMatrix(quat);
+                
+                var rectB = rectA.transform(matRotate);
+                
+                //create offsetLine
+                var transAxisA = verb.core.Vec.normalized(xAxis);
+                var transAxisAScaled = 
+                    verb.core.Vec.mul(this.x/2 + this.offset, transAxisA);
+                var transAxisB = verb.core.Vec.normalized(yAxis);
+                var transAxisBScaled = 
+                    verb.core.Vec.mul(this.y/2 + this.offset, transAxisB);
+                
+                var transVec = verb.core.Vec.add(transAxisAScaled, transAxisBScaled);
+                
+                var p1 = verb.core.Vec.add(center, transVec);
+                var p2 = [p1[0],-p1[1],p1[2]];
+                
+                var offsetLine1 = new verb.geom.Line(p1, p2);
+                
+                transAxisBScaled = 
+                    verb.core.Vec.mul(this.x + (this.offset * 2), transAxisB);
+                
+                var  p3 = verb.core.Vec.sub(p1, transAxisBScaled);
+                var  p4 = [p3[0],-p3[1],p3[2]];
+                
+                var offsetLine2 = new verb.geom.Line(p1, p3);
+                var offsetLine3 = new verb.geom.Line(p2, p4);
+                
+                center = [0,0,0];
+                
+                //create intersection for outerArc
+                circle = {center: center, radius: this.radius + this.offset};
+                pointB = verb.core.Vec.add(p3, transAxisAScaled);
+                
+                var p5 = OpenPlus.CircleLineIntersect(p3,pointB,circle)[1];
+                p5[2] = 0;
+                var p6 = [p5[0],-p5[1],p5[2]];
+                
+                var offsetLine4 = new verb.geom.Line(p3, p5);
+                var offsetLine5 = new verb.geom.Line(p4, p6);
+                
+                angle = OpenPlus.AnglePtOnCircle( p6, this.radius + this.offset);
+                
+                var xAxis = [1,0,0];
+                var yAxis = [0,1,0];
+                
+                var outerArc = new verb.geom.Arc(center, xAxis, yAxis,
+                    this.radius + this.offset, angle, (Math.PI * 2) - angle);
+                
+                var lines = [offsetLine1, offsetLine2, offsetLine3, offsetLine4,
+                    offsetLine5, outerArc, rectA, rectB, innerArc.reverse(),
+                    nutSlotLine, nutSlotLineMir, closingNutLine];
+                
+                var bottomGeom = OpenPlus.PlanarSrf(lines, true);
+                var bottomMesh = new THREE.Mesh(bottomGeom);
+                
+                var extrusion = this.nutWidth;
+                var extrVec = [0, 0, extrusion];
+                
+                var topMesh = bottomMesh.clone();
+                topMesh.translateZ(extrusion);
+                
+                
+                //extract all lines for final mesh
+                var outerArcExtr = new THREE.Mesh(
+                        new verb.geom.ExtrudedSurface(outerArc, extrVec).toThreeGeometry());
+                var rectHoleA = new THREE.Mesh(
+                        new verb.geom.ExtrudedSurface(rectA, extrVec).toThreeGeometry());
+                var rectHoleB = new THREE.Mesh(
+                        new verb.geom.ExtrudedSurface(rectB, extrVec).toThreeGeometry());
+                
+                var extrLine2 = new THREE.Mesh(
+                        new verb.geom.ExtrudedSurface(offsetLine2, extrVec).toThreeGeometry());
+                var extrLine3 = new THREE.Mesh(
+                        new verb.geom.ExtrudedSurface(offsetLine3, extrVec).toThreeGeometry());
+                var extrLine4 = new THREE.Mesh(
+                        new verb.geom.ExtrudedSurface(offsetLine4, extrVec).toThreeGeometry());
+                var extrLine5 = new THREE.Mesh(
+                        new verb.geom.ExtrudedSurface(offsetLine5, extrVec).toThreeGeometry());
+                
+                var backMeshes = [bottomMesh, outerArcExtr, rectHoleA, rectHoleB, extrLine3, extrLine5];
+                var frontMeshes = [topMesh, extrLine2, extrLine4];
+                
+                //combine the cylinder and the bottom and top meshes
+                this.mesh = OpenPlus.combineMesh(frontMeshes, backMeshes,
+                    this.materialFront, this.materialBack);
             };
 
             CupBoard = function () {
@@ -142,8 +311,7 @@
                 this.wallThickness;
 
                 //printed variables
-                this.connectorLegWallTop;
-                this.connectorLegWallBottom;
+                this.connectorLegWallShelf;
                 this.connectorLegShelf;
                 this.connectorLegShelfWall;
 
@@ -152,212 +320,21 @@
             };
 
             CupBoard.prototype.Build = function () {
-                var leg = new Leg(20, 200);
+                
+                var nut  = new ThinNut(3);
+                var leg = new Leg(22, 200);
+                
+                //this is a temporary object that needs its own function
+                var wallRib = {x: 9, y:9};
+                
+                var connectorLegWallShelf = new ConnectorLegWallShelf(
+                    leg, wallRib, nut);
 
                 scene.add(leg.mesh);
+                scene.add(connectorLegWallShelf.mesh);
 
             };
-
-            OpenPlus = {
-                EqualPoints: function (pointA, pointB) {
-                    if (Math.abs(pointA[0] - pointB[0]) > 1e-6)
-                        return false;
-                    if (Math.abs(pointA[1] - pointB[1]) > 1e-6)
-                        return false;
-                    if (Math.abs(pointA[2] - pointB[2]) > 1e-6)
-                        return false;
-                    return true;
-                },
-                JoinCurves: function (tempCurves) {
-                    var curves = tempCurves.slice(0);
-
-                    var CurveLine = function (curve) {
-                        this.start = curve.point(0);
-                        this.end = curve.point(1);
-                        this.curves = [curve];
-                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
-                    };
-
-                    CurveLine.prototype.push = function (newCurve) {
-                        this.end = newCurve.point(1);
-                        this.curves.push(newCurve);
-                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
-                    };
-
-                    CurveLine.prototype.unshift = function (newCurve) {
-                        this.start = newCurve.point(0);
-                        this.curves.unshift(newCurve);
-                        this.closed = OpenPlus.EqualPoints(this.start, this.end);
-                    };
-
-                    var curveLine = new CurveLine(curves.splice(0, 1)[0]);
-                    var connectedCurves = [curveLine];
-
-                    //sure this algorithm is horrible, but should work for now
-                    if (curves.length !== 0) {
-
-                        for (var i = 0; i < connectedCurves.length; i++) {
-
-                            var tempLine = connectedCurves[i];
-
-                            if (!tempLine.closed) {
-
-                                for (var j = 0; j < curves.length; j++) {
-
-                                    var curve = curves[j];
-
-                                    var curveStart = curve.point(0);
-                                    var curveEnd = curve.point(1);
-
-                                    if (OpenPlus.EqualPoints(curveStart, tempLine.end)) {
-                                        tempLine.push(curve);
-                                    } else if (OpenPlus.EqualPoints(curveEnd, tempLine.start)) {
-                                        tempLine.unshift(curve);
-                                    } else if (OpenPlus.EqualPoints(curveStart, tempLine.start)) {
-                                        tempLine.unshift(curve.reverse());
-                                    } else if (OpenPlus.EqualPoints(curveEnd, tempLine.end)) {
-                                        tempLine.push(curve.reverse());
-                                    } else {
-                                        continue;
-                                    }
-
-                                    curves.splice(j, 1);
-                                    j = -1;
-
-                                    if (tempLine.closed)
-                                        break;
-                                }
-                            }
-
-                            if (curves.length === 0)
-                                break;
-                            else
-                                connectedCurves.push(new CurveLine(curves.splice(0, 1)[0]));
-
-                        }
-                    }
-
-                    var returnArray = [];
-                    for (var i = 0; i < connectedCurves.length; i++) {
-                        returnArray[i] = connectedCurves[i].curves;
-                    }
-
-                    return returnArray;
-                },
-                
-                PlanarSrf: function (curves, willFlip) {
-                    var flipped = willFlip || false;
-
-                    //first need to check if all are curves
-
-                    //create joined lines, should check if these are inside each other or not
-                    //this will define if an object with or without hole will be made
-                    var curveLines = OpenPlus.JoinCurves(curves);
-
-                    //now I need to check if the curves are planar
-                    //http://verbnurbs.com/docs/core/Trig/#ispointinplane
-                    //http://threejs.org/docs/#Reference/Math/Plane
-
-                    //then check if curves intersect or are inside each other
-                    //those that are inside a different path need to create their own geometry
-
-                    var path = new THREE.Path;
-                    path.autoClose = false;
-
-                    for (var i = 0; i < curveLines.length; i++) {
-                        var tempCurves = curveLines[i];
-
-                        var startPoint = tempCurves[0].point(0);
-                        var vertices = [new THREE.Vector2(startPoint[0], startPoint[1])];
-
-                        for (var j = 0; j < tempCurves.length; j++) {
-                            var curve = tempCurves[j].toThreeGeometry();
-
-                            var verticeClone = curve.vertices.slice(1);
-
-                            vertices = vertices.concat(verticeClone);
-                        }
-
-                        path.fromPoints(vertices);
-                    }
-
-                    var shape = path.toShapes(flipped, false)[0];
-
-                    var geometry = new THREE.ShapeGeometry(shape, {curveSegments: 100});
-
-                    return geometry;
-                },
-                
-                //combine meshes into a single mesh
-                combineMesh: function (meshesFront, meshesBack,
-                    materialFront, materialBack) {
-
-                    var mergedGeom = new THREE.Geometry();
-
-                    for (var i = 0; i < meshesFront.length; i++) {
-                        var tempMesh = meshesFront[i];
-
-                        tempMesh.updateMatrix();
-                        mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 0);
-                    }
-
-                    for (var i = 0; i < meshesBack.length; i++) {
-                        var tempMesh = meshesBack[i];
-
-                        tempMesh.updateMatrix();
-                        mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 1);
-                    }
-
-                    var materials = [materialFront, materialBack];
-                    var resultMesh = new THREE.Mesh(mergedGeom, new THREE.MeshFaceMaterial(materials));
-
-                    return resultMesh;
-                },
-                
-                //function to mirror and combine meshes and make them into a complete mesh
-                mirrorCombineMesh: function (meshesFront, meshesBack,
-                    materialFront, materialBack) {
-                        
-                    var mS = (new THREE.Matrix4()).identity();
-                    mS.elements[5] = -1;
-
-                    var mergedGeom = new THREE.Geometry();
-
-                    for (var i = 0; i < meshesFront.length; i++) {
-                        var tempMesh = meshesFront[i];
-
-                        tempMesh.updateMatrix();
-                        mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 0);
-
-                        var tempMeshClone = tempMesh.clone();
-
-                        tempMeshClone.applyMatrix(mS);
-                        tempMeshClone.updateMatrix();
-
-                        mergedGeom.merge(tempMeshClone.geometry, tempMeshClone.matrix, 1);
-                    }
-
-                    for (var i = 0; i < meshesBack.length; i++) {
-                        var tempMesh = meshesBack[i];
-
-                        tempMesh.updateMatrix();
-                        mergedGeom.merge(tempMesh.geometry, tempMesh.matrix, 1);
-
-                        var tempMeshClone = tempMesh.clone();
-
-                        tempMeshClone.applyMatrix(mS);
-                        tempMeshClone.updateMatrix();
-
-                        mergedGeom.merge(tempMeshClone.geometry, tempMeshClone.matrix, 0);
-                    }
-
-                    var materials = [materialFront, materialBack];
-                    var resultMesh = new THREE.Mesh(mergedGeom, new THREE.MeshFaceMaterial(materials));
-
-                    return resultMesh;
-                }
-            };
-
+            
             var cupboard = new CupBoard();
 
             threeRender();
