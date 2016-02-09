@@ -273,6 +273,47 @@
                 var topMesh = bottomMesh.clone();
                 topMesh.translateZ(extrusion);
                 
+                //create the entrance of the screw in the connector
+                //create rectangle and circle
+                
+                var xAxis = verb.core.Vec.sub(p1, p2);
+                var yAxis = [xAxis[1], xAxis[0], 0];
+                yAxis = verb.core.Vec.normalized(yAxis);
+                yAxis = verb.core.Vec.mul((-this.nutWidth / 2), yAxis);
+                
+                var centerPoint = verb.core.Vec.add(p1, p2);
+                centerPoint = verb.core.Vec.div(centerPoint, 2);
+                
+                var center = verb.core.Vec.add(centerPoint, yAxis);
+                
+                var rectFront = OpenPlus.Rectangle(center,
+                    xAxis, yAxis, offsetLine1.length(), this.nutWidth);
+                
+                var screwEntrance = new verb.geom.Circle(center, xAxis,yAxis,
+                    (this.nutM / 2) + this.margin);
+                    
+                var front = OpenPlus.PlanarSrf([rectFront, screwEntrance]);
+                
+                front.translate(-p1[0],-p1[1],-p1[2]);
+                
+                var rotVec = new THREE.Vector3( xAxis[0], xAxis[1], xAxis[2] );
+                rotVec.normalize();
+                var quat = new THREE.Quaternion();
+                quat.setFromAxisAngle( rotVec, Math.PI/2 );
+                var mat = new THREE.Matrix4();
+                mat.makeRotationFromQuaternion(quat);
+                front.applyMatrix(mat);
+                
+                front.translate(p1[0],p1[1],p1[2]);
+                
+                frontMesh = new THREE.Mesh(front);
+                
+                //then create the exit
+                var gapHole = OpenPlus.Polygon(center, xAxis, yAxis, 6, this.nutRadius);
+                
+                console.log(gapHole);
+                
+                addCurveToScene(gapHole.toThreeGeometry());
                 
                 //extract all lines for final mesh
                 var outerArcExtr = new THREE.Mesh(
@@ -291,7 +332,8 @@
                 var extrLine5 = new THREE.Mesh(
                         new verb.geom.ExtrudedSurface(offsetLine5, extrVec).toThreeGeometry());
                 
-                var backMeshes = [bottomMesh, outerArcExtr, rectHoleA, rectHoleB, extrLine3, extrLine5];
+                var backMeshes = [bottomMesh, outerArcExtr, rectHoleA, rectHoleB,
+                    extrLine3, extrLine5, frontMesh];
                 var frontMeshes = [topMesh, extrLine2, extrLine4];
                 
                 //combine the cylinder and the bottom and top meshes
@@ -327,10 +369,13 @@
                 //this is a temporary object that needs its own function
                 var wallRib = {x: 9, y:9};
                 
+                var d1 = Date.now();
                 var connectorLegWallShelf = new ConnectorLegWallShelf(
                     leg, wallRib, nut);
-
-                scene.add(leg.mesh);
+                var d2 = Date.now();
+                console.log("built connector in ", (d2 - d1), " ms ");
+                
+                //scene.add(leg.mesh);
                 scene.add(connectorLegWallShelf.mesh);
 
             };
