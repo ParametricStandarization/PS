@@ -177,7 +177,7 @@
                 var zAxis = [0,0,1];
                 
                 var pointA = [0, this.nutRadius, 0];
-                var pointB = [this.radius + this.nutHeight, this.nutRadius, 0];
+                var pointB = [this.radius + this.nutHeight, this.nutRadius / 2, 0];
                 var circle = {center: center, radius: this.radius};
                 
                 var intPoint =
@@ -210,8 +210,8 @@
                     xAxis, yAxis, this.x, this.y);
                 
                 //mirror of innerRectangle
-                var quat = OpenPlus.QatFromaxisangle(zAxis, Math.PI/2);
-                var matRotate = OpenPlus.QuatToMatrix(quat);
+                var quat = OpenPlus.QuatFromAxisAngle(zAxis, Math.PI/2);
+                var matRotate = OpenPlus.MatrixFromQuat(quat);
                 
                 var rectB = rectA.transform(matRotate);
                 
@@ -260,11 +260,11 @@
                 var outerArc = new verb.geom.Arc(center, xAxis, yAxis,
                     this.radius + this.offset, angle, (Math.PI * 2) - angle);
                 
-                var lines = [offsetLine1, offsetLine2, offsetLine3, offsetLine4,
-                    offsetLine5, outerArc, rectA, rectB, innerArc.reverse(),
+                var lines = [offsetLine1.reverse(), offsetLine2, offsetLine3, offsetLine4,
+                    offsetLine5, outerArc, rectA.reverse(), rectB.reverse(), innerArc,
                     nutSlotLine, nutSlotLineMir, closingNutLine];
                 
-                var bottomGeom = OpenPlus.PlanarSrf(lines, true);
+                var bottomGeom = OpenPlus.PlanarSrf(lines)[0];
                 var bottomMesh = new THREE.Mesh(bottomGeom);
                 
                 var extrusion = this.nutWidth;
@@ -292,28 +292,32 @@
                 var screwEntrance = new verb.geom.Circle(center, xAxis,yAxis,
                     (this.nutM / 2) + this.margin);
                     
-                var front = OpenPlus.PlanarSrf([rectFront, screwEntrance]);
+                var front = OpenPlus.PlanarSrf([rectFront, screwEntrance])[0];
                 
-                front.translate(-p1[0],-p1[1],-p1[2]);
+                var rotMat = OpenPlus.MatrixRotationOverLine(p1, p2, Math.PI*1.5);
+                var mat = OpenPlus.ToThreeMatrix(rotMat);
                 
-                var rotVec = new THREE.Vector3( xAxis[0], xAxis[1], xAxis[2] );
-                rotVec.normalize();
-                var quat = new THREE.Quaternion();
-                quat.setFromAxisAngle( rotVec, Math.PI/2 );
-                var mat = new THREE.Matrix4();
-                mat.makeRotationFromQuaternion(quat);
                 front.applyMatrix(mat);
                 
-                front.translate(p1[0],p1[1],p1[2]);
-                
-                frontMesh = new THREE.Mesh(front);
+                var frontMesh = new THREE.Mesh(front);
                 
                 //then create the exit
+                center = [this.radius + this.nutHeight, 0, this.nutWidth / 2];
                 var gapHole = OpenPlus.Polygon(center, xAxis, yAxis, 6, this.nutRadius);
                 
-                console.log(gapHole);
+                var screwExit = new verb.geom.Circle(center, xAxis,yAxis,
+                    (this.nutM / 2) + this.margin);
+                    
+                var nutCap = OpenPlus.PlanarSrf([gapHole.reverse(), screwExit])[0];
                 
-                addCurveToScene(gapHole.toThreeGeometry());
+                rotMat = OpenPlus.MatrixRotationOverLine(center, verb.core.Vec.add(center, xAxis), Math.PI /2);
+                mat = OpenPlus.ToThreeMatrix(rotMat);
+                
+                var tempLine = new verb.geom.Line(center, verb.core.Vec.add(center, xAxis));
+                
+                nutCap.applyMatrix(mat);
+                
+                var nutCapMesh = new THREE.Mesh(nutCap);
                 
                 //extract all lines for final mesh
                 var outerArcExtr = new THREE.Mesh(
@@ -334,7 +338,7 @@
                 
                 var backMeshes = [bottomMesh, outerArcExtr, rectHoleA, rectHoleB,
                     extrLine3, extrLine5, frontMesh];
-                var frontMeshes = [topMesh, extrLine2, extrLine4];
+                var frontMeshes = [topMesh, extrLine2, extrLine4, nutCapMesh];
                 
                 //combine the cylinder and the bottom and top meshes
                 this.mesh = OpenPlus.combineMesh(frontMeshes, backMeshes,
