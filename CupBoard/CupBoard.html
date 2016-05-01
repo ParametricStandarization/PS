@@ -1,60 +1,75 @@
 <!DOCTYPE html>
 <html>
 
-    <head>
-        <script src="../lib/OpenPlus.js"></script>
-        <script src="../lib/verb.js"></script>
-        <script src="../lib/three.min.js"></script>
-        <script src="../lib/verbToThreeConversion.js"></script>
-        <script src="../lib/OrbitControls.js"></script>
-        <script src="../lib/threeBasic.js"></script>
-        <script src="../lib/STLLoader.js"></script>
 
-        <style type="text/css">
-            body { 
-                margin: 0; 
-                background: white;
+    <script src="../lib/OpenPlus.js"></script>
+    <script src="../lib/verb.js"></script>
+    <script src="../lib/three.min.js"></script>
+    <script src="../lib/verbToThreeConversion.js"></script>
+    <script src="../lib/OrbitControls.js"></script>
+    <script src="../lib/threeBasic.js"></script>
+    <script src="../lib/STLLoader.js"></script>
+    <script src="../lib/ObjectControls.js"></script>
 
-                text-align: center;
-            }
+    <!--parts-->
+    <script src="parts/leg.js"></script>
+    <script src="parts/rib.js"></script>
+    <script src="parts/plate.js"></script>
+    <script src="parts/connectorLegWallShelf.js"></script>
+    <script src="parts/connectorWallCornerShelf.js"></script>
+    <script src="parts/connectorLegWallShelf_1.js" type="text/javascript"></script>
 
-            .centerDiv {
+    <!--blocks-->
+    <script src="blocks/LowerBackConnector.js" type="text/javascript"></script>
+    <script src="blocks/LowerFrontConnector.js" type="text/javascript"></script>
+    <script src="blocks/TopBackConnector.js" type="text/javascript"></script>
+    <script src="blocks/TopFrontConnector.js" type="text/javascript"></script>
 
-                position: absolute;
-                left: 50%;
-                top: 5%;
+    <style type="text/css">
+        body { 
+            margin: 0; 
+            background: white;
 
-                text-align: left;
-            }
+            text-align: center;
+        }
 
-            .titleContainer {
-                font-family:"Tahoma";
-                font-weight: bold;
+        .centerDiv {
 
-                position: relative;
-                left: -50%;
+            position: absolute;
+            left: 50%;
+            top: 5%;
 
-                z-index: -1;
-            }
+            text-align: left;
+        }
 
-            #objectContainer {
-            }
+        .titleContainer {
+            font-family:"Tahoma";
+            font-weight: bold;
 
-            .mainTitle {
-                font-size: 1000%;
-            }
+            position: relative;
+            left: -50%;
 
-            .product {
-                font-size: 300%;
-            }
+            z-index: -1;
+        }
 
-            .part {
-                font-size: 150%;
+        #objectContainer {
+        }
 
-                text-align: left;
-            }
-        </style>
-    </head>
+        .mainTitle {
+            font-size: 1000%;
+        }
+
+        .product {
+            font-size: 300%;
+        }
+
+        .part {
+            font-size: 150%;
+
+            text-align: left;
+        }
+    </style>
+
     <body>
 
         <div id="objectContainer">
@@ -71,290 +86,37 @@
 
 
             threeSetup();
-            
+
+
+
             ThinNut = function (mSize) {
                 this.m = mSize;
-                
-                this.height = 0.5 * mSize;
-                this.width = 1.8 * mSize;
+
+                this.height = (0.5 * mSize);
                 this.diameter = 2 * mSize;
+                this.width = 2 * Math.sqrt((mSize * mSize) - ((mSize / 2) * (mSize / 2)));
             };
 
-            Leg = function (diameter, height) {
-                this.diameter = diameter;
+            CupBoard = function (width, depth, height, containerHeight) {
+                //overal variables
                 this.height = height;
-                this.mesh;
-                
-                this.materialFront = new THREE.MeshLambertMaterial({
-                    color: 0xffff99
-                    , side: THREE.FrontSide
-                    , shading: THREE.SmoothShading
-                });
+                this.width = width;
+                this.depth = depth;
+                this.containerHeight = containerHeight;
 
-                this.materialBack = new THREE.MeshLambertMaterial({
-                    color: 0xffff99
-                    , side: THREE.BackSide
-                    , shading: THREE.SmoothShading
-                });
+                //bought variables - moet die nog min maxxen
+                this.legDiameter = 22;
+                this.ribThicknessX = 9;
+                this.ribThicknessY = 9;
+                this.shelfThickness = 18;
+                this.wallThickness = 6;
 
-                this.build();
-            };
+                this.nut = new ThinNut(3);
 
-            Leg.prototype.build = function () {
-                var radius = this.diameter / 2;
-                var height = this.height;
-
-                var center = [0, 0, 0];
-                var xAxis = [1, 0, 0];
-                var yAxis = [0, 1, 0];
-                var zAxis = [0, 0, 1];
-
-                //create the bottom cap circle of the cylinder
-                var circle = new verb.geom.Circle(
-                        center, xAxis, yAxis, radius);
-
-                var circleGeom = OpenPlus.PlanarSrf([circle]);
-                var bottomCircleMesh = new THREE.Mesh(circleGeom);
-
-                //clone and translate circle to create top cap
-                var topCircleMesh = bottomCircleMesh.clone();
-                topCircleMesh.translateZ(height);
-
-                //cylinderMesh, is a open cylinder shape
-                var cylinderNurb = new verb.geom.CylindricalSurface(
-                        zAxis, xAxis, center, height, radius);
-
-                var cylinderMesh = new THREE.Mesh(cylinderNurb.toThreeGeometry());
-                
-                //add meshes to array to combine into one mesh
-                var frontMeshes = [topCircleMesh];
-                var backMeshes = [bottomCircleMesh, cylinderMesh];
-                
-                //combine the cylinder and the bottom and top meshes
-                this.mesh = OpenPlus.combineMesh(frontMeshes, backMeshes,
-                    this.materialFront, this.materialBack);
-
-            };
-
-            ConnectorLegWallShelf = function (leg, wallRib, nut) {
-                //margin and offset
+                //
                 this.margin = 0.3;
                 this.offset = 2;
-                
-                //depended on connected objects
-                this.radius = (leg.diameter) / 2 + this.margin;
-                
-                this.x = wallRib.x + (this.margin * 2);
-                this.y = wallRib.y + (this.margin * 2);
-                
-                //dependend on the diameter of the nut
-                this.nutM = nut.m;
-                this.nutHeight = nut.height + this.margin;
-                this.nutWidth = nut.width;
-                this.nutRadius = (nut.diameter / 2) + this.margin;
-                
-                this.materialFront = new THREE.MeshLambertMaterial({
-                    color: 0x99ff66
-                    , side: THREE.FrontSide
-                    , shading: THREE.SmoothShading
-                });
-
-                this.materialBack = new THREE.MeshLambertMaterial({
-                    color: 0x99ff66
-                    , side: THREE.BackSide
-                    , shading: THREE.SmoothShading
-                });
-                
-                this.mesh;
-                
-                this.build();
-            };
-            
-            ConnectorLegWallShelf.prototype.build = function (){
-                var center = [0,0,0];
-                var xAxis = [1,0,0];
-                var yAxis = [0,1,0];
-                var zAxis = [0,0,1];
-                
-                var pointA = [0, this.nutRadius, 0];
-                var pointB = [this.radius + this.nutHeight, this.nutRadius / 2, 0];
-                var circle = {center: center, radius: this.radius};
-                
-                var intPoint =
-                    OpenPlus.CircleLineIntersect(pointA, pointB, circle)[1];
-                intPoint[2] = 0;
-                
-                var angle = OpenPlus.AnglePtOnCircle(intPoint, this.radius);
-                
-                var innerArc = new verb.geom.Arc(center, xAxis, yAxis,
-                    this.radius, angle, (Math.PI * 2) - angle);
-                
-                var nutSlotLine = new verb.geom.Line(intPoint, pointB);
-                
-                var matMirror = [[1,0,0], [0,-1,0], [0,0,1]];
-                var nutSlotLineMir = nutSlotLine.transform(matMirror);;
-                
-                var closingNutLine = new verb.geom.Line(
-                        nutSlotLine.point(1), nutSlotLineMir.point(1));
-                
-                //create the rectangles for wallholders
-                center = [1,-1,0];
-                center = verb.core.Vec.normalized(center);
-                center = verb.core.Vec.mul(
-                        (this.radius + this.offset + (this.x/2)), center);
-                xAxis = [1,-1,0];
-                yAxis = [1,1,0];
-                
-                //var innerRectangle
-                var rectA = OpenPlus.Rectangle( center,
-                    xAxis, yAxis, this.x, this.y);
-                
-                //mirror of innerRectangle
-                var quat = OpenPlus.QuatFromAxisAngle(zAxis, Math.PI/2);
-                var matRotate = OpenPlus.MatrixFromQuat(quat);
-                
-                var rectB = rectA.transform(matRotate);
-                
-                //create offsetLine
-                var transAxisA = verb.core.Vec.normalized(xAxis);
-                var transAxisAScaled = 
-                    verb.core.Vec.mul(this.x/2 + this.offset, transAxisA);
-                var transAxisB = verb.core.Vec.normalized(yAxis);
-                var transAxisBScaled = 
-                    verb.core.Vec.mul(this.y/2 + this.offset, transAxisB);
-                
-                var transVec = verb.core.Vec.add(transAxisAScaled, transAxisBScaled);
-                
-                var p1 = verb.core.Vec.add(center, transVec);
-                var p2 = [p1[0],-p1[1],p1[2]];
-                
-                var offsetLine1 = new verb.geom.Line(p1, p2);
-                
-                transAxisBScaled = 
-                    verb.core.Vec.mul(this.x + (this.offset * 2), transAxisB);
-                
-                var  p3 = verb.core.Vec.sub(p1, transAxisBScaled);
-                var  p4 = [p3[0],-p3[1],p3[2]];
-                
-                var offsetLine2 = new verb.geom.Line(p1, p3);
-                var offsetLine3 = new verb.geom.Line(p2, p4);
-                
-                center = [0,0,0];
-                
-                //create intersection for outerArc
-                circle = {center: center, radius: this.radius + this.offset};
-                pointB = verb.core.Vec.add(p3, transAxisAScaled);
-                
-                var p5 = OpenPlus.CircleLineIntersect(p3,pointB,circle)[1];
-                p5[2] = 0;
-                var p6 = [p5[0],-p5[1],p5[2]];
-                
-                var offsetLine4 = new verb.geom.Line(p3, p5);
-                var offsetLine5 = new verb.geom.Line(p4, p6);
-                
-                angle = OpenPlus.AnglePtOnCircle( p6, this.radius + this.offset);
-                
-                var xAxis = [1,0,0];
-                var yAxis = [0,1,0];
-                
-                var outerArc = new verb.geom.Arc(center, xAxis, yAxis,
-                    this.radius + this.offset, angle, (Math.PI * 2) - angle);
-                
-                var lines = [offsetLine1.reverse(), offsetLine2, offsetLine3, offsetLine4,
-                    offsetLine5, outerArc, rectA.reverse(), rectB.reverse(), innerArc,
-                    nutSlotLine, nutSlotLineMir, closingNutLine];
-                
-                var bottomGeom = OpenPlus.PlanarSrf(lines)[0];
-                var bottomMesh = new THREE.Mesh(bottomGeom);
-                
-                var extrusion = this.nutWidth;
-                var extrVec = [0, 0, extrusion];
-                
-                var topMesh = bottomMesh.clone();
-                topMesh.translateZ(extrusion);
-                
-                //create the entrance of the screw in the connector
-                //create rectangle and circle
-                
-                var xAxis = verb.core.Vec.sub(p1, p2);
-                var yAxis = [xAxis[1], xAxis[0], 0];
-                yAxis = verb.core.Vec.normalized(yAxis);
-                yAxis = verb.core.Vec.mul((-this.nutWidth / 2), yAxis);
-                
-                var centerPoint = verb.core.Vec.add(p1, p2);
-                centerPoint = verb.core.Vec.div(centerPoint, 2);
-                
-                var center = verb.core.Vec.add(centerPoint, yAxis);
-                
-                var rectFront = OpenPlus.Rectangle(center,
-                    xAxis, yAxis, offsetLine1.length(), this.nutWidth);
-                
-                var screwEntrance = new verb.geom.Circle(center, xAxis,yAxis,
-                    (this.nutM / 2) + this.margin);
-                    
-                var front = OpenPlus.PlanarSrf([rectFront, screwEntrance])[0];
-                
-                var rotMat = OpenPlus.MatrixRotationOverLine(p1, p2, Math.PI*1.5);
-                var mat = OpenPlus.ToThreeMatrix(rotMat);
-                
-                front.applyMatrix(mat);
-                
-                var frontMesh = new THREE.Mesh(front);
-                
-                //then create the exit
-                center = [this.radius + this.nutHeight, 0, this.nutWidth / 2];
-                var gapHole = OpenPlus.Polygon(center, xAxis, yAxis, 6, this.nutRadius);
-                
-                var screwExit = new verb.geom.Circle(center, xAxis,yAxis,
-                    (this.nutM / 2) + this.margin);
-                    
-                var nutCap = OpenPlus.PlanarSrf([gapHole.reverse(), screwExit])[0];
-                
-                rotMat = OpenPlus.MatrixRotationOverLine(center, verb.core.Vec.add(center, xAxis), Math.PI /2);
-                mat = OpenPlus.ToThreeMatrix(rotMat);
-                
-                var tempLine = new verb.geom.Line(center, verb.core.Vec.add(center, xAxis));
-                
-                nutCap.applyMatrix(mat);
-                
-                var nutCapMesh = new THREE.Mesh(nutCap);
-                
-                //extract all lines for final mesh
-                var outerArcExtr = new THREE.Mesh(
-                        new verb.geom.ExtrudedSurface(outerArc, extrVec).toThreeGeometry());
-                var rectHoleA = new THREE.Mesh(
-                        new verb.geom.ExtrudedSurface(rectA, extrVec).toThreeGeometry());
-                var rectHoleB = new THREE.Mesh(
-                        new verb.geom.ExtrudedSurface(rectB, extrVec).toThreeGeometry());
-                
-                var extrLine2 = new THREE.Mesh(
-                        new verb.geom.ExtrudedSurface(offsetLine2, extrVec).toThreeGeometry());
-                var extrLine3 = new THREE.Mesh(
-                        new verb.geom.ExtrudedSurface(offsetLine3, extrVec).toThreeGeometry());
-                var extrLine4 = new THREE.Mesh(
-                        new verb.geom.ExtrudedSurface(offsetLine4, extrVec).toThreeGeometry());
-                var extrLine5 = new THREE.Mesh(
-                        new verb.geom.ExtrudedSurface(offsetLine5, extrVec).toThreeGeometry());
-                
-                var backMeshes = [bottomMesh, outerArcExtr, rectHoleA, rectHoleB,
-                    extrLine3, extrLine5, frontMesh];
-                var frontMeshes = [topMesh, extrLine2, extrLine4, nutCapMesh];
-                
-                //combine the cylinder and the bottom and top meshes
-                this.mesh = OpenPlus.combineMesh(frontMeshes, backMeshes,
-                    this.materialFront, this.materialBack);
-            };
-
-            CupBoard = function () {
-                //overal variables
-                this.height;
-                this.width;
-                this.length;
-
-                //bought variables
-                this.legDiameter;
-                this.shelfThickness;
-                this.wallThickness;
+                this.extraOnZRib = 5;
 
                 //printed variables
                 this.connectorLegWallShelf;
@@ -362,33 +124,274 @@
                 this.connectorLegShelfWall;
 
                 //build the cupboard;
+                this.CalcDims();
                 this.Build();
+                this.Construct();
+            };
+
+            CupBoard.prototype.CalcDims = function () {
+                var _margin = this.margin * 4;
+                var _offset = this.offset * 2;
+                var _ribTX = this.ribThicknessX;
+                var _ribTY = this.ribThicknessY;
+                var _legDiam = this.legDiameter;
+                var _width = this.width;
+                var _depth = this.depth;
+                var _contHeigth = this.containerHeight;
+
+                //dimensions ribs
+                this.ribXLength = _width -
+                        (_legDiam + _margin + _offset + (_ribTX * 2));
+
+                this.ribYLength = _depth -
+                        (_legDiam + _margin + _offset + (_ribTX * 2));
+
+                this.ribZLength = _contHeigth + (_margin / 2) +
+                        ((this.nut.width + this.extraOnZRib) * 2);
+
+                //dimensions wall plates
+                this.plateLength = _contHeigth - (_ribTY * 2) - _offset - _margin;
+                this.plateWidthX = this.ribXLength - _offset - _margin;
+                this.plateWidthY = this.ribYLength - _offset - _margin;
+
+                //dimensions top and bottom plate
+                var tempDistA = (Math.sin(Math.PI / 4) * _legDiam) + (_margin / 2);
+                var tempDistB = _ribTX + _margin + _offset;
+
+                this.plateMargin = tempDistA > tempDistB ?
+                        ((tempDistA - tempDistB) / 2) + this.offset : this.offset;
+
+                this.topBotWidth = _width - _ribTX - _margin - (this.plateMargin * 2);
+                this.topBotDepth = _depth - _ribTX - _margin - (this.plateMargin * 2);
+
+                //dimensions for shelf
+                this.shelfWidth = _width - _ribTX - _margin - (((tempDistA - tempDistB) / 2) + this.offset * 2);
+                this.shelfDepth = _depth - _ribTX - _margin - (((tempDistA - tempDistB) / 2) + this.offset * 2);
             };
 
             CupBoard.prototype.Build = function () {
-                
-                var nut  = new ThinNut(3);
-                var leg = new Leg(22, 200);
-                
-                //this is a temporary object that needs its own function
-                var wallRib = {x: 9, y:9};
-                
                 var d1 = Date.now();
+
+                this.leg = new Leg(this.legDiameter, this.height);
+
+                this.ribX = new Rib(this.ribThicknessX, this.ribThicknessY,
+                        this.ribXLength, [1, 0, 0]);
+                this.ribY = new Rib(this.ribThicknessX, this.ribThicknessY,
+                        this.ribYLength, [0, 1, 0]);
+                this.ribZ = new Rib(this.ribThicknessX, this.ribThicknessY,
+                        this.ribZLength, [0, 0, 1]);
+
+                this.plateX = new Plate(this.plateWidthX, this.plateLength,
+                        this.wallThickness, [0, 1, 0]);
+                this.plateY = new Plate(this.plateWidthY, this.plateLength,
+                        this.wallThickness, [1, 0, 0]);
+
+                this.topBot = new Plate(this.topBotWidth, this.topBotDepth,
+                        this.shelfThickness, [0, 0, 1]);
+
+                this.shelf = new Plate(this.shelfWidth, this.shelfDepth,
+                        this.shelfThickness, [0, 0, 1]);
+
+                //create connector archetypes
                 var connectorLegWallShelf = new ConnectorLegWallShelf(
-                    leg, wallRib, nut);
+                        this.leg, this.ribX, this.nut, this.plateMargin);
+
+                var connectorWallCornerShelf = new ConnectorWallCornerShelf(
+                        this.leg, this.topBot, this.plateX, this.ribX, this.nut, this.plateMargin);
+
+                //create combined objects out of prototypes
+                this.lowerBackConnector = new LowerBackConnector(
+                        connectorLegWallShelf, connectorWallCornerShelf, this.ribX, this.nut);
+
+                this.lowerFrontConnector = new LowerFrontConnector(
+                        connectorLegWallShelf, connectorWallCornerShelf, this.ribX, this.nut);
+
+                this.topBackConnector = new TopBackConnector(
+                        connectorLegWallShelf, connectorWallCornerShelf, this.ribX, this.nut);
+
+                this.topFrontConnector = new TopFrontConnector(
+                        connectorLegWallShelf, connectorWallCornerShelf, this.ribX, this.nut);
+
+                this.shelfRest = connectorLegWallShelf.clone();
+                this.shelfRest.buildShelfRest();
+
                 var d2 = Date.now();
-                console.log("built connector in ", (d2 - d1), " ms ");
+                console.log("built connectors in ", (d2 - d1), " ms ");
+            };
+
+            CupBoard.prototype.Construct = function () {
+                //ordenen van de objecten
+                var width = this.width;
+                var depth = this.depth;
+                var height = this.height;
+
+                var heightA = height - (this.ribThicknessY / 2)
+                        - this.nut.width - this.margin;
+                var heightB = (heightA + this.ribThicknessY)
+                        - this.containerHeight;
+
+                for (var i = 0; i < 4; i++) {
+                    var legClone = this.leg.mesh.clone();
+                    var ribX = this.ribX.mesh.clone();
+                    var ribY = this.ribY.mesh.clone();
+
+                    legClone.translateX(
+                            (i === 0 || i === 3) ? width / 2 : -width / 2);
+                    legClone.translateY((i < 2) ? depth / 2 : -depth / 2);
+
+                    ribX.translateY((i < 2) ? depth / 2 : -depth / 2);
+                    ribX.translateZ((i === 0 || i === 3) ? heightA : heightB);
+
+                    ribY.translateX((i < 2) ? width / 2 : -width / 2);
+                    ribY.translateZ((i === 0 || i === 3) ? heightA : heightB);
+
+                    scene.add(legClone);
+                    scene.add(ribX);
+                    scene.add(ribY);
+                }
+
+                var heightC = height - (this.ribZLength / 2) + this.extraOnZRib;
+
+                var posX = (this.ribXLength / 2) + (this.ribThicknessX / 2);
+                var posY = (this.ribYLength / 2) + (this.ribThicknessX / 2);
+
+                for (var i = 0; i < 4; i++) {
+                    var ribA = this.ribZ.mesh.clone();
+                    var ribB = this.ribZ.mesh.clone();
+
+                    ribA.translateZ(heightC);
+                    ribB.translateZ(heightC);
+
+                    ribA.translateX((i === 0 || i === 3) ? posX : -posX);
+                    ribA.translateY((i < 2) ? depth / 2 : -depth / 2);
+
+                    ribB.translateX((i === 0 || i === 3) ? width / 2 : -width / 2);
+                    ribB.translateY((i < 2) ? posY : -posY);
+
+                    scene.add(ribA);
+                    scene.add(ribB);
+                }
+
+                var widthA = (width / 2) +
+                        ((this.ribThicknessX / 2) - (this.wallThickness / 2));
+                var depthA = (depth / 2) +
+                        ((this.ribThicknessX / 2) - (this.wallThickness / 2));
+
+                var plateYA = this.plateY.mesh.clone();
+                var plateYB = this.plateY.mesh.clone();
+                var plateX = this.plateX.mesh.clone();
+
+                plateYA.translateZ(heightC);
+                plateYB.translateZ(heightC);
+                plateX.translateZ(heightC);
+
+                plateYA.translateX(widthA);
+                plateYB.translateX(-widthA);
+                plateX.translateY(depthA);
+
+                scene.add(plateYA);
+                scene.add(plateYB);
+                scene.add(plateX);
+
+                var heightD = height - (this.shelfThickness / 2)
+                        - this.nut.width - this.margin;
+                var heightE = (heightD + this.shelfThickness)
+                        - this.containerHeight;
+
+                var plateHorA = this.topBot.mesh.clone();
+                var plateHorB = this.topBot.mesh.clone();
+
+                plateHorA.translateZ(heightD);
+                plateHorB.translateZ(heightE);
+
+                scene.add(plateHorA);
+                scene.add(plateHorB);
+
+                //placement of the connectors
+                var tBConA = this.topBackConnector.mesh(
+                        [width / 2, depth / 2, height - this.nut.width],
+                        [0, 0, Math.PI]);
+
+                var tBConB = this.topBackConnector.mesh(
+                        [-width / 2, depth / 2, height - this.nut.width],
+                        [0, 0, Math.PI * 1.5]);
+
+                scene.add(tBConA);
+                scene.add(tBConB);
+
+                var tFConA = this.topFrontConnector.mesh(
+                        [width / 2, -depth / 2, height - this.nut.width],
+                        [0, 0, Math.PI / 2]);
+
+                var tFConB = this.topFrontConnector.mesh(
+                        [-width / 2, -depth / 2, height - this.nut.width],
+                        [0, 0, Math.PI / 2], [-1, 1, 1], true);
+
+                scene.add(tFConA);
+                scene.add(tFConB);
+
+                var lBConA = this.lowerBackConnector.mesh(
+                        [width / 2, depth / 2, height - (this.nut.width + this.margin) - this.containerHeight],
+                        [Math.PI, 0, Math.PI * 1.5]);
+
+                var lBConB = this.lowerBackConnector.mesh(
+                        [-width / 2, depth / 2, height - (this.nut.width + this.margin) - this.containerHeight],
+                        [Math.PI, 0, 0]);
+
+                scene.add(lBConA);
+                scene.add(lBConB);
+
+                var lFConA = this.lowerFrontConnector.mesh(
+                        [width / 2, -depth / 2, height - (this.nut.width + this.margin) - this.containerHeight],
+                        [0, 0, Math.PI / 2], [1, 1, -1], true);
+
+                var lFConB = this.lowerFrontConnector.mesh(
+                        [-width / 2, -depth / 2, height - (this.nut.width + this.margin) - this.containerHeight],
+                        [Math.PI, 0, Math.PI / 2]);
+
+
+                scene.add(lFConA);
+                scene.add(lFConB);
+
+                //add first shelf
+
+                var heightF = heightB + 150;
                 
-                //scene.add(leg.mesh);
-                scene.add(connectorLegWallShelf.mesh);
+                var angle = Math.PI;
+
+                var material = new THREE.MeshLambertMaterial({
+                    color: 0x99ff66
+                    , side: THREE.FrontSide
+                });
+
+                for (var i = 0; i < 4; i++) {
+                    
+                    var shelfHolderClone = this.shelfRest.geom.clone();
+                    
+                    shelfHolderClone.rotateZ (angle);
+                    angle = angle + (Math.PI / 2);
+                    
+                    var shelfHolderMesh = new THREE.Mesh(shelfHolderClone, material);
+
+                    shelfHolderMesh.translateX(
+                            (i === 0 || i === 3) ? width / 2 : -width / 2);
+                    shelfHolderMesh.translateY((i < 2) ? depth / 2 : -depth / 2);
+                    shelfHolderMesh.translateZ(heightF);
+
+                    scene.add(shelfHolderMesh);
+                }
+                
+                var firstShelf = this.shelf.mesh.clone();
+                
+                firstShelf.translateZ(heightF + this.nut.width + ((this.shelfThickness)/2) + this.margin);
+                
+                scene.add(firstShelf);
 
             };
-            
-            var cupboard = new CupBoard();
+
+            var cupboard = new CupBoard(600, 300, 700, 400);
 
             threeRender();
-
-
 
         </script>
 
